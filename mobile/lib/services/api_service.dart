@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import '../utils/network_discovery.dart';
 
 class ApiService {
   
@@ -14,29 +16,62 @@ class ApiService {
     _token = prefs.getString('auth_token');
   }
   
-  // Test connection to backend
+  // Test connection to backend with automatic network discovery
   static Future<bool> testConnection() async {
+    if (ApiConfig.enableLogging) {
+      print('🔍 Starting network discovery...');
+    }
+    
+    // First try automatic network discovery
     try {
-      if (ApiConfig.enableLogging) {
-        print('🔍 Testing connection to: ${ApiConfig.baseUrl}');
+      String? discoveredUrl = await NetworkDiscovery.discoverBackendUrl();
+      
+      if (discoveredUrl != null) {
+        ApiConfig.setWorkingBaseUrl(discoveredUrl);
+        if (ApiConfig.enableLogging) {
+          print('✅ Auto-discovered backend at: $discoveredUrl');
+        }
+        return true;
       }
-      
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/auth/test'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
-      
-      if (ApiConfig.enableLogging) {
-        print('📡 Connection test response: ${response.statusCode}');
-      }
-      
-      return response.statusCode == 200 || response.statusCode == 404; // 404 is OK, means server is reachable
     } catch (e) {
       if (ApiConfig.enableLogging) {
-        print('❌ Connection test failed: $e');
+        print('⚠️ Network discovery failed, trying predefined URLs: $e');
       }
-      return false;
     }
+    
+    // Fallback to predefined URLs
+    for (String testUrl in ApiConfig.possibleBaseUrls) {
+      try {
+        if (ApiConfig.enableLogging) {
+          print('🔍 Testing connection to: $testUrl');
+        }
+        
+        final response = await http.get(
+          Uri.parse('$testUrl/health'),
+          headers: {'Content-Type': 'application/json'},
+        ).timeout(ApiConfig.connectionTimeout);
+        
+        if (ApiConfig.enableLogging) {
+          print('📡 Connection test response: ${response.statusCode}');
+        }
+        
+        if (response.statusCode == 200) {
+          ApiConfig.setWorkingBaseUrl(testUrl);
+          return true;
+        }
+        
+      } catch (e) {
+        if (ApiConfig.enableLogging) {
+          print('❌ Connection test failed for $testUrl: $e');
+        }
+        continue;
+      }
+    }
+    
+    if (ApiConfig.enableLogging) {
+      print('❌ All connection attempts failed');
+    }
+    return false;
   }
   
   // Save token to storage
@@ -133,12 +168,25 @@ class ApiService {
   }) async {
     if (ApiConfig.enableLogging) {
       print('🔐 Attempting login for: $email');
-      print('🌐 API URL: ${ApiConfig.baseUrl}/auth/login');
+    }
+    
+    // Ensure we have a working connection before attempting login
+    bool connectionEstablished = await testConnection();
+    if (!connectionEstablished) {
+      throw ApiException(
+        message: 'Unable to connect to server. Please check your internet connection.',
+        statusCode: 0,
+        errors: null,
+      );
+    }
+    
+    if (ApiConfig.enableLogging) {
+      print('🌐 API URL: ${ApiConfig.safeBaseUrl}/auth/login');
     }
     
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/login'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/login'),
         headers: _getHeaders(includeAuth: false),
         body: json.encode({
           'email': email,
@@ -285,8 +333,18 @@ class ApiService {
         print('🔄 Sending forgot password request for: $email');
       }
       
+      // Ensure we have a working connection
+      bool connectionEstablished = await testConnection();
+      if (!connectionEstablished) {
+        throw ApiException(
+          message: 'Unable to connect to server. Please check your internet connection.',
+          statusCode: 0,
+          errors: null,
+        );
+      }
+      
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/forgot-password'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/forgot-password'),
         headers: _getHeaders(includeAuth: false),
         body: json.encode({'email': email}),
       ).timeout(ApiConfig.timeout);
@@ -541,16 +599,36 @@ class ApiService {
     required File imageFile,
     required String scanType, // 'food' or 'ingredient'
   }) async {
+    if (ApiConfig.enableLogging) {
+      print('📤 Preparing image upload...');
+      print('📂 Image path: ${imageFile.path}');
+      print('📊 Image size: ${await imageFile.length()} bytes');
+    }
+    
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$ApiConfig.baseUrl/scan/analyze'),
+      Uri.parse('${ApiConfig.getUrl('scan/analyze')}'),
     );
     
     request.headers.addAll(_getMultipartHeaders());
     request.fields['scanType'] = scanType;
-    request.files.add(
-      await http.MultipartFile.fromPath('scanImage', imageFile.path),
+    
+    // Add image file with explicit MIME type
+    final multipartFile = await http.MultipartFile.fromPath(
+      'scanImage', 
+      imageFile.path,
+      contentType: MediaType('image', 'jpeg'), // Explicitly set MIME type
     );
+    
+    if (ApiConfig.enableLogging) {
+      print('📎 Multipart file created:');
+      print('  - Field name: ${multipartFile.field}');
+      print('  - Filename: ${multipartFile.filename}');
+      print('  - Content type: ${multipartFile.contentType}');
+      print('  - Length: ${multipartFile.length}');
+    }
+    
+    request.files.add(multipartFile);
     
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);

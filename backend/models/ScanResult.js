@@ -52,7 +52,16 @@ const scanResultSchema = new mongoose.Schema({
   },
   apiProvider: {
     type: String,
-    default: 'internal'
+    default: 'gemini'
+  },
+  feedback: {
+    accuracy: {
+      type: Number,
+      min: 1,
+      max: 5
+    },
+    comment: String,
+    submittedAt: Date
   },
   status: {
     type: String,

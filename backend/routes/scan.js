@@ -4,34 +4,14 @@ const ScanResult = require('../models/ScanResult');
 const Recipe = require('../models/Recipe');
 const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const roboflowService = require('../services/roboflowService');
 
 const router = express.Router();
-
-// Mock AI detection function (replace with actual AI service)
-const mockAIDetection = (imageBuffer, scanType) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const mockResults = {
-        food: [
-          { name: 'Adobo', confidence: 0.95, category: 'dish', boundingBox: { x: 100, y: 100, width: 200, height: 150 } },
-          { name: 'Rice', confidence: 0.88, category: 'food', boundingBox: { x: 50, y: 200, width: 100, height: 80 } }
-        ],
-        ingredient: [
-          { name: 'Chicken', confidence: 0.92, category: 'ingredient', boundingBox: { x: 80, y: 120, width: 180, height: 140 } },
-          { name: 'Soy Sauce', confidence: 0.85, category: 'ingredient', boundingBox: { x: 300, y: 50, width: 60, height: 120 } },
-          { name: 'Garlic', confidence: 0.78, category: 'ingredient', boundingBox: { x: 200, y: 300, width: 40, height: 40 } }
-        ]
-      };
-      
-      resolve(mockResults[scanType] || []);
-    }, 2000); // Simulate processing time
-  });
-};
 
 // @route   POST /api/scan/analyze
 // @desc    Analyze uploaded image for food/ingredients
 // @access  Private
-router.post('/analyze', auth, upload.single('scanImage'), [
+router.post('/analyze', auth, upload.memoryUpload.single('scanImage'), [
   body('scanType')
     .isIn(['food', 'ingredient'])
     .withMessage('Scan type must be either food or ingredient')
@@ -66,36 +46,47 @@ router.post('/analyze', auth, upload.single('scanImage'), [
 
     await scanResult.save();
 
-    // Return immediately with scan ID for real-time updates
-    res.json({
-      success: true,
-      message: 'Image uploaded successfully, processing started',
-      scanId: scanResult._id,
-      status: 'processing'
-    });
-
-    // Process image asynchronously
+    // Process image synchronously for immediate response
     try {
       const startTime = Date.now();
-      const detectedItems = await mockAIDetection(req.file.buffer, scanType);
+      const detectedItems = await roboflowService.analyzeFood(req.file.buffer, scanType);
       const processingTime = Date.now() - startTime;
+
+      // Handle empty detection results
+      if (detectedItems.length === 0) {
+        // Update scan result with no items found
+        scanResult.detectedItems = [];
+        scanResult.suggestedRecipes = [];
+        scanResult.processingTime = processingTime;
+        scanResult.status = 'completed';
+        await scanResult.save();
+
+        // Return response indicating no items detected
+        return res.json({
+          success: true,
+          message: 'No food items detected in the image',
+          scanId: scanResult._id,
+          status: 'completed',
+          detectedItems: [{ name: 'No food detected. Try adjusting lighting or angle.', confidence: 0, category: 'info' }],
+          suggestedRecipes: [],
+          processingTime
+        });
+      }
 
       // Find suggested recipes based on detected items
       let suggestedRecipes = [];
-      if (detectedItems.length > 0) {
-        const itemNames = detectedItems.map(item => item.name);
-        suggestedRecipes = await Recipe.find({
-          $or: [
-            { title: { $in: itemNames.map(name => new RegExp(name, 'i')) } },
-            { 'ingredients.name': { $in: itemNames.map(name => new RegExp(name, 'i')) } },
-            { tags: { $in: itemNames.map(name => new RegExp(name, 'i')) } }
-          ],
-          isPublished: true
-        })
-          .populate('creator', 'name profileImage')
-          .limit(10)
-          .sort({ averageRating: -1 });
-      }
+      const itemNames = detectedItems.map(item => item.name);
+      suggestedRecipes = await Recipe.find({
+        $or: [
+          { title: { $in: itemNames.map(name => new RegExp(name, 'i')) } },
+          { 'ingredients.name': { $in: itemNames.map(name => new RegExp(name, 'i')) } },
+          { tags: { $in: itemNames.map(name => new RegExp(name, 'i')) } }
+        ],
+        isPublished: true
+      })
+        .populate('creator', 'name profileImage')
+        .limit(10)
+        .sort({ averageRating: -1 });
 
       // Update scan result
       scanResult.detectedItems = detectedItems;
@@ -104,10 +95,12 @@ router.post('/analyze', auth, upload.single('scanImage'), [
       scanResult.status = 'completed';
       await scanResult.save();
 
-      // Send real-time update via Socket.IO
-      const io = req.app.get('io');
-      io.to(`user_${req.user._id}`).emit('scanComplete', {
+      // Return complete results immediately
+      res.json({
+        success: true,
+        message: 'Image analyzed successfully',
         scanId: scanResult._id,
+        status: 'completed',
         detectedItems,
         suggestedRecipes,
         processingTime
@@ -121,13 +114,17 @@ router.post('/analyze', auth, upload.single('scanImage'), [
       scanResult.errorMessage = 'Failed to process image';
       await scanResult.save();
 
-      // Send error update via Socket.IO
-      const io = req.app.get('io');
-      io.to(`user_${req.user._id}`).emit('scanError', {
+      // Return error response
+      res.status(500).json({
+        success: false,
+        message: 'Failed to process image',
         scanId: scanResult._id,
-        error: 'Failed to process image'
+        status: 'failed',
+        detectedItems: [],
+        error: processingError.message
       });
     }
+
 
   } catch (error) {
     console.error('Scan analyze error:', error);
@@ -365,6 +362,29 @@ router.get('/stats', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/scan/test-gemini
+// @desc    Test Gemini API connectivity
+// @access  Private
+router.get('/test-gemini', auth, async (req, res) => {
+  try {
+    const testResult = await roboflowService.testConnection();
+    
+    res.json({
+      success: testResult.success,
+      message: testResult.message,
+      apiConfigured: roboflowService.isConfigured,
+      response: testResult.response || null
+    });
+  } catch (error) {
+    console.error('Test Gemini error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test Gemini connection',
+      error: error.message
     });
   }
 });

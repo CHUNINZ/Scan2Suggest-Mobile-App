@@ -46,8 +46,11 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer
-const upload = multer({
+// Configure storage for scan images (memory storage for AI processing)
+const memoryStorage = multer.memoryStorage();
+
+// Separate upload configurations
+const diskUpload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -55,4 +58,12 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-module.exports = upload;
+const memoryUpload = multer({
+  storage: memoryStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: fileFilter
+});
+
+module.exports = { diskUpload, memoryUpload };
