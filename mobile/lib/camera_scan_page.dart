@@ -6,7 +6,8 @@ import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import 'services/api_service.dart';
-import 'scan_results_page.dart';
+import 'enhanced_scan_results_page.dart';
+import 'ingredient_scan_results_page.dart';
 
 class CameraScanPage extends StatefulWidget {
   final String scanType; // 'Food' or 'Ingredient'
@@ -335,14 +336,16 @@ class _CameraScanPageState extends State<CameraScanPage>
         }
       }
 
-      // Navigate to results
+      // Navigate to results based on scan type
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ScanResultsPage(
-            scanType: widget.scanType,
-            detectedItems: detectedItems,
-          ),
+          builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
+              ? IngredientScanResultsPage(imageFile: imageFile)
+              : EnhancedScanResultsPage(
+                  imageFile: imageFile,
+                  scanType: widget.scanType,
+                ),
         ),
       );
     } catch (e) {
@@ -442,14 +445,16 @@ class _CameraScanPageState extends State<CameraScanPage>
         detectedItems = ['No ${scanType}s detected. Try adjusting lighting or angle.'];
       }
 
-      // Navigate to results page
+      // Navigate to results page based on scan type
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ScanResultsPage(
-            scanType: widget.scanType,
-            detectedItems: detectedItems,
-          ),
+          builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
+              ? IngredientScanResultsPage(imageFile: imageFile)
+              : EnhancedScanResultsPage(
+                  imageFile: imageFile,
+                  scanType: widget.scanType,
+                ),
         ),
       );
     } catch (e) {
@@ -488,16 +493,8 @@ class _CameraScanPageState extends State<CameraScanPage>
         return;
       }
       
-      // Navigate to results with error message for other errors
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ScanResultsPage(
-            scanType: widget.scanType,
-            detectedItems: ['Scan failed: $errorMessage'],
-          ),
-        ),
-      );
+      // For other errors, just show the error message
+      // User can try scanning again
     }
   }
 

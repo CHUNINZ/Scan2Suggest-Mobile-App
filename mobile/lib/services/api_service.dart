@@ -218,7 +218,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/verify-email'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/verify-email'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
@@ -254,7 +254,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/resend-verification'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/resend-verification'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
@@ -290,12 +290,12 @@ class ApiService {
   }) async {
     if (ApiConfig.enableLogging) {
       print('📝 Registering user: $email');
-      print('🌐 API URL: ${ApiConfig.baseUrl}/auth/register');
+      print('🌐 API URL: ${ApiConfig.safeBaseUrl}/auth/register');
     }
     
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/register'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/register'),
         headers: _getHeaders(includeAuth: false),
         body: json.encode({
           'name': name,
@@ -376,7 +376,7 @@ class ApiService {
       }
       
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/auth/verify-reset-code'),
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/verify-reset-code'),
         headers: _getHeaders(includeAuth: false),
         body: json.encode({
           'email': email,
@@ -411,7 +411,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> getCurrentUser() async {
     final response = await http.get(
-      Uri.parse('$ApiConfig.baseUrl/auth/me'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/auth/me'),
       headers: _getHeaders(),
     );
     
@@ -420,7 +420,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> logout() async {
     final response = await http.post(
-      Uri.parse('$ApiConfig.baseUrl/auth/logout'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/auth/logout'),
       headers: _getHeaders(),
     );
     
@@ -436,7 +436,7 @@ class ApiService {
     Map<String, dynamic>? preferences,
   }) async {
     final response = await http.put(
-      Uri.parse('$ApiConfig.baseUrl/users/profile'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/users/profile'),
       headers: _getHeaders(),
       body: json.encode({
         'name': name,
@@ -452,7 +452,7 @@ class ApiService {
   static Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$ApiConfig.baseUrl/users/upload-avatar'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/users/upload-avatar'),
     );
     
     request.headers.addAll(_getMultipartHeaders());
@@ -473,6 +473,7 @@ class ApiService {
     String? category,
     String? difficulty,
     String? search,
+    String? creatorId,
     String sort = 'createdAt',
     String order = 'desc',
   }) async {
@@ -486,8 +487,9 @@ class ApiService {
     if (category != null) queryParams['category'] = category;
     if (difficulty != null) queryParams['difficulty'] = difficulty;
     if (search != null) queryParams['search'] = search;
+    if (creatorId != null) queryParams['creator'] = creatorId;
     
-    final uri = Uri.parse('$ApiConfig.baseUrl/recipes').replace(
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/recipes').replace(
       queryParameters: queryParams,
     );
     
@@ -497,7 +499,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> getRecipe(String recipeId) async {
     final response = await http.get(
-      Uri.parse('$ApiConfig.baseUrl/recipes/$recipeId'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId'),
       headers: _getHeaders(includeAuth: false),
     );
     
@@ -520,7 +522,7 @@ class ApiService {
   }) async {
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$ApiConfig.baseUrl/recipes'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes'),
     );
     
     request.headers.addAll(_getMultipartHeaders());
@@ -547,8 +549,26 @@ class ApiService {
     // Add image files
     if (images != null) {
       for (final image in images) {
+        // Get file extension to determine mime type
+        final extension = image.path.split('.').last.toLowerCase();
+        String mimeType = 'image/jpeg'; // default
+        
+        if (extension == 'png') {
+          mimeType = 'image/png';
+        } else if (extension == 'jpg' || extension == 'jpeg') {
+          mimeType = 'image/jpeg';
+        } else if (extension == 'gif') {
+          mimeType = 'image/gif';
+        } else if (extension == 'webp') {
+          mimeType = 'image/webp';
+        }
+        
         request.files.add(
-          await http.MultipartFile.fromPath('recipeImages', image.path),
+          await http.MultipartFile.fromPath(
+            'recipeImages',
+            image.path,
+            contentType: MediaType.parse(mimeType),
+          ),
         );
       }
     }
@@ -561,7 +581,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> likeRecipe(String recipeId) async {
     final response = await http.post(
-      Uri.parse('$ApiConfig.baseUrl/recipes/$recipeId/like'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/like'),
       headers: _getHeaders(),
     );
     
@@ -570,7 +590,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> bookmarkRecipe(String recipeId) async {
     final response = await http.post(
-      Uri.parse('$ApiConfig.baseUrl/recipes/$recipeId/bookmark'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/bookmark'),
       headers: _getHeaders(),
     );
     
@@ -583,7 +603,7 @@ class ApiService {
     String? review,
   }) async {
     final response = await http.post(
-      Uri.parse('$ApiConfig.baseUrl/recipes/$recipeId/rate'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/rate'),
       headers: _getHeaders(),
       body: json.encode({
         'rating': rating,
@@ -638,7 +658,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> getScanResult(String scanId) async {
     final response = await http.get(
-      Uri.parse('$ApiConfig.baseUrl/scan/result/$scanId'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/result/$scanId'),
       headers: _getHeaders(),
     );
     
@@ -657,18 +677,162 @@ class ApiService {
     
     if (scanType != null) queryParams['scanType'] = scanType;
     
-    final uri = Uri.parse('$ApiConfig.baseUrl/scan/history').replace(
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/scan/history').replace(
       queryParameters: queryParams,
     );
     
     final response = await http.get(uri, headers: _getHeaders());
     return _handleResponse(response);
   }
+
+  // Confirm detection result and get recipe
+  static Future<Map<String, dynamic>> confirmDetection({
+    required String scanId,
+    required String foodName,
+    required bool isCorrect,
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('✅ Confirming detection: $foodName (correct: $isCorrect)');
+    }
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/confirm'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'scanId': scanId,
+        'foodName': foodName,
+        'isCorrect': isCorrect,
+      }),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Manual food input when detection is wrong
+  static Future<Map<String, dynamic>> manualFoodInput({
+    required String foodName,
+    String? scanId,
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('✏️ Manual food input: $foodName');
+    }
+    
+    final body = {'foodName': foodName};
+    if (scanId != null) body['scanId'] = scanId;
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/manual-input'),
+      headers: _getHeaders(),
+      body: json.encode(body),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Get recipe for a specific food
+  static Future<Map<String, dynamic>> getRecipeByName(String foodName) async {
+    if (ApiConfig.enableLogging) {
+      print('🍳 Getting recipe for: $foodName');
+    }
+    
+    final response = await http.get(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/recipe/${Uri.encodeComponent(foodName)}'),
+      headers: _getHeaders(),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Ingredient scanning APIs
+  static Future<Map<String, dynamic>> scanIngredients({
+    required File imageFile,
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('🥬 Scanning ingredients...');
+      print('📂 Image path: ${imageFile.path}');
+      print('📊 Image size: ${await imageFile.length()} bytes');
+    }
+    
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConfig.getUrl('scan/ingredients')}'),
+    );
+    
+    request.headers.addAll(_getMultipartHeaders());
+    
+    // Add image file
+    final multipartFile = await http.MultipartFile.fromPath(
+      'scanImage', 
+      imageFile.path,
+      contentType: MediaType('image', 'jpeg'),
+    );
+    
+    request.files.add(multipartFile);
+    
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    
+    return _handleResponse(response);
+  }
+
+  // Get recipe suggestions based on ingredients
+  static Future<Map<String, dynamic>> getRecipeSuggestions({
+    required List<Map<String, dynamic>> ingredients,
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('🍳 Getting recipe suggestions for ingredients: ${ingredients.map((i) => i['name']).join(', ')}');
+    }
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/recipe-suggestions'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'ingredients': ingredients,
+      }),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Get full recipe details for a suggested recipe
+  static Future<Map<String, dynamic>> getRecipeDetails(String recipeName) async {
+    if (ApiConfig.enableLogging) {
+      print('📖 Getting recipe details for: $recipeName');
+    }
+    
+    final response = await http.get(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/recipe-details/${Uri.encodeComponent(recipeName)}'),
+      headers: _getHeaders(),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Generate shopping list for missing ingredients
+  static Future<Map<String, dynamic>> generateShoppingList({
+    required List<Map<String, dynamic>> selectedRecipes,
+    required List<Map<String, dynamic>> userIngredients,
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('🛒 Generating shopping list...');
+    }
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/shopping-list'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'selectedRecipes': selectedRecipes,
+        'userIngredients': userIngredients,
+      }),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
   
   // Social APIs
   static Future<Map<String, dynamic>> followUser(String userId) async {
     final response = await http.post(
-      Uri.parse('$ApiConfig.baseUrl/social/follow/$userId'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/social/follow/$userId'),
       headers: _getHeaders(),
     );
     
@@ -684,7 +848,7 @@ class ApiService {
       'limit': limit.toString(),
     };
     
-    final uri = Uri.parse('$ApiConfig.baseUrl/social/feed').replace(
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/social/feed').replace(
       queryParameters: queryParams,
     );
     
@@ -703,7 +867,7 @@ class ApiService {
       'timeframe': timeframe,
     };
     
-    final uri = Uri.parse('$ApiConfig.baseUrl/social/trending').replace(
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/social/trending').replace(
       queryParameters: queryParams,
     );
     
@@ -723,7 +887,7 @@ class ApiService {
       'unreadOnly': unreadOnly.toString(),
     };
     
-    final uri = Uri.parse('$ApiConfig.baseUrl/notifications').replace(
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/notifications').replace(
       queryParameters: queryParams,
     );
     
@@ -733,7 +897,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> markNotificationAsRead(String notificationId) async {
     final response = await http.put(
-      Uri.parse('$ApiConfig.baseUrl/notifications/$notificationId/read'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/notifications/$notificationId/read'),
       headers: _getHeaders(),
     );
     
@@ -742,7 +906,7 @@ class ApiService {
   
   static Future<Map<String, dynamic>> markAllNotificationsAsRead() async {
     final response = await http.put(
-      Uri.parse('$ApiConfig.baseUrl/notifications/read-all'),
+      Uri.parse('${ApiConfig.safeBaseUrl}/notifications/read-all'),
       headers: _getHeaders(),
     );
     

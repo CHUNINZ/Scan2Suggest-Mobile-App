@@ -13,7 +13,7 @@ const detectedItemSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['ingredient', 'food', 'dish'],
+    enum: ['ingredient', 'food', 'dish', 'vegetable', 'fruit', 'meat', 'dairy', 'grain', 'spice', 'condiment', 'oil', 'other'],
     required: true
   },
   boundingBox: {
@@ -25,7 +25,7 @@ const detectedItemSchema = new mongoose.Schema({
 });
 
 const scanResultSchema = new mongoose.Schema({
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -35,12 +35,9 @@ const scanResultSchema = new mongoose.Schema({
     enum: ['food', 'ingredient'],
     required: true
   },
-  originalImage: {
+  imageUrl: {
     type: String,
     required: true
-  },
-  processedImage: {
-    type: String
   },
   detectedItems: [detectedItemSchema],
   suggestedRecipes: [{
@@ -62,6 +59,23 @@ const scanResultSchema = new mongoose.Schema({
     },
     comment: String,
     submittedAt: Date
+  },
+  // New fields for confirmation workflow
+  confirmedFood: {
+    type: String,
+    default: null
+  },
+  isConfirmed: {
+    type: Boolean,
+    default: false
+  },
+  detectionCorrect: {
+    type: Boolean,
+    default: null
+  },
+  manualInput: {
+    type: Boolean,
+    default: false
   },
   status: {
     type: String,

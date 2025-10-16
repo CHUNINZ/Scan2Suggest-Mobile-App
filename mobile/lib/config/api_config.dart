@@ -3,7 +3,7 @@ class ApiConfig {
   // ========================================
   // 🔧 CHANGE THIS IP ADDRESS WHEN SWITCHING WIFI NETWORKS
   // ========================================
-  static const String BACKEND_IP = '192.168.194.169'; // <-- UPDATE THIS IP ONLY
+  static const String BACKEND_IP = '192.168.194.185'; // <-- UPDATE THIS IP ONLY
   static const String BACKEND_PORT = '3000';
   
   // Primary backend URL (constructed from IP above)
@@ -12,16 +12,14 @@ class ApiConfig {
   // Multiple possible server addresses - the app will try each one
   static List<String> get possibleBaseUrls => [
     primaryBackendUrl, // Primary IP from above
+    'http://10.0.2.2:$BACKEND_PORT/api', // Android emulator host
+    'http://localhost:$BACKEND_PORT/api', // iOS simulator
+    'http://192.168.194.185:$BACKEND_PORT/api', // Alternative IP
     'http://192.168.194.169:$BACKEND_PORT/api', // Device subnet with common host
-    'http://10.0.2.16:$BACKEND_PORT/api', // Device subnet range
     'http://192.168.192.39:$BACKEND_PORT/api', // Device subnet range
     'http://192.168.192.105:$BACKEND_PORT/api', // Device subnet range
-    'http://100.85.169.124:$BACKEND_PORT/api', // Previous network IP
     'http://192.168.0.105:$BACKEND_PORT/api',  // Previous WiFi
     'http://192.168.1.105:$BACKEND_PORT/api',  // Common router IP range
-    'http://10.0.0.105:$BACKEND_PORT/api',     // Another common range
-    'http://172.16.0.105:$BACKEND_PORT/api',   // Private network range
-    'http://localhost:$BACKEND_PORT/api',      // Li
   ];
   
   // Current working base URL (will be set after connection test)

@@ -7,8 +7,8 @@ class NetworkDiscovery {
   /// Automatically discover the backend server on the local network
   static Future<String?> discoverBackendUrl() async {
     // First try the known backend IP directly
-    if (await _testUrl('http://192.168.194.169:3000/api')) {
-      return 'http://192.168.194.169:3000/api';
+    if (await _testUrl('http://192.168.194.185:3000/api')) {
+      return 'http://192.168.194.185:3000/api';
     }
     
     // Get device's current network info and generate candidates
