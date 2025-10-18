@@ -21,7 +21,8 @@ router.get('/', optionalAuth, async (req, res) => {
       search,
       sort = 'createdAt',
       order = 'desc',
-      featured
+      featured,
+      creator
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -32,6 +33,7 @@ router.get('/', optionalAuth, async (req, res) => {
     if (difficulty) query.difficulty = difficulty;
     if (cuisine) query.cuisine = cuisine;
     if (featured === 'true') query.isFeatured = true;
+    if (creator) query.creator = creator;
 
     // Search functionality
     if (search) {
@@ -124,7 +126,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // @route   POST /api/recipes
 // @desc    Create new recipe
 // @access  Private
-router.post('/', auth, upload.array('recipeImages', 5), [
+router.post('/', auth, upload.diskUpload.array('recipeImages', 5), [
   body('title')
     .trim()
     .isLength({ min: 3, max: 100 })
@@ -225,7 +227,7 @@ router.post('/', auth, upload.array('recipeImages', 5), [
 // @route   PUT /api/recipes/:id
 // @desc    Update recipe
 // @access  Private
-router.put('/:id', auth, upload.array('recipeImages', 5), async (req, res) => {
+router.put('/:id', auth, upload.diskUpload.array('recipeImages', 5), async (req, res) => {
   try {
     const recipe = await Recipe.findById(req.params.id);
 

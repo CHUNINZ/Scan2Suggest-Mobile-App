@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'Start Cooking',
+      title: 'Scan2Suggest',
       debugShowCheckedModeBanner: false,
       
       // Use the custom theme from AppTheme
