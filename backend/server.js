@@ -96,7 +96,7 @@ app.get('/api/health', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Start Cooking API Server',
+    message: 'Scan2Suggest API Server',
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',

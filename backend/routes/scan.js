@@ -5,9 +5,6 @@ const Recipe = require('../models/Recipe');
 const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const roboflowService = require('../services/roboflowService');
-const recipeService = require('../services/enhancedRecipeService');
-const ingredientDetectionService = require('../services/ingredientDetectionService');
-const recipeSuggestionService = require('../services/recipeSuggestionService');
 const mealDbRecipeService = require('../services/mealDbRecipeService');
 
 const router = express.Router();

@@ -226,7 +226,7 @@ class _LoadingTransitionState extends State<LoadingTransition>
                     
                     const SizedBox(height: 40),
                     
-                    // Start Cooking text
+                    // Scan2Suggest text
                     AnimatedBuilder(
                       animation: _logoController,
                       builder: (context, child) {
@@ -235,7 +235,7 @@ class _LoadingTransitionState extends State<LoadingTransition>
                           child: Transform.rotate(
                             angle: _logoRotationAnimation.value * 0.1,
                             child: const Text(
-                              'Start Cooking',
+                              'Scan2Suggest',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 32,

@@ -109,7 +109,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
   
   void _startAnimationSequence() async {
-    // Start cooking elements animation first
+    // Scan2Suggest elements animation first
     _cookingElementsController.forward();
     
     // Slight delay then start logo animation

@@ -171,7 +171,7 @@ class _RecipeFromScanPageState extends State<RecipeFromScanPage>
         backgroundColor: Colors.orange.shade600,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.timer),
-        label: const Text('Start Cooking'),
+        label: const Text('Scan2Suggest'),
       ),
     );
   }

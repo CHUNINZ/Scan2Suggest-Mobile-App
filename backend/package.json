@@ -1,7 +1,7 @@
 {
   "name": "start-cooking-backend",
   "version": "1.0.0",
-  "description": "Backend API for Start Cooking - Filipino Recipe App",
+  "description": "Backend API for Scan2Suggest - Filipino Recipe App",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

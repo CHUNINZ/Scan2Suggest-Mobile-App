@@ -456,7 +456,7 @@ ${_description.isEmpty ? 'A delicious Filipino dish made with love!' : _descript
 ⏰ Cooking time: $_cookingDuration minutes
 🥘 Ingredients: ${_ingredients.isEmpty ? 'Traditional Filipino ingredients' : _ingredients.join(', ')}
 
-Made with Start Cooking App 🇵🇭
+Made with Scan2Suggest App 🇵🇭
 ''';
 
     // Show share options modal

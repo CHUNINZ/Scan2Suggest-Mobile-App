@@ -289,7 +289,7 @@ class _OnboardingState extends State<Onboarding>
             _buildSparkleOverlay(),
             
             // Status bar with better layout
-            _buildStatusBar(),
+          
             
             // Main content positioned at bottom
             _buildBottomContentLayout(),
@@ -445,78 +445,7 @@ class _OnboardingState extends State<Onboarding>
     );
   }
   
-  Widget _buildStatusBar() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '9:41',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.30,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(0, 1),
-                      blurRadius: 3,
-                      color: Colors.black45,
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.signal_cellular_4_bar, 
-                    size: 16, 
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(offset: Offset(0, 1), blurRadius: 3, color: Colors.black45)
-                    ],
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.wifi, 
-                    size: 16, 
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(offset: Offset(0, 1), blurRadius: 3, color: Colors.black45)
-                    ],
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 22,
-                    height: 11.33,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white),
-                      borderRadius: BorderRadius.circular(2.67),
-                    ),
-                    child: Container(
-                      margin: const EdgeInsets.all(1),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(1.33),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  
   
   Widget _buildBottomContentLayout() {
     return Positioned(
@@ -539,7 +468,7 @@ class _OnboardingState extends State<Onboarding>
                     child: Opacity(
                       opacity: clampedValue,
                       child: const Text(
-                        'Start Cooking',
+                        'Scan2Suggest',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -578,7 +507,7 @@ class _OnboardingState extends State<Onboarding>
                     child: Opacity(
                       opacity: clampedValue,
                       child: const Text(
-                        'Let\'s join our community\nto cook better food!',
+                        'Your Next Delicious Hapag-Kainan is One Scan Away.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
