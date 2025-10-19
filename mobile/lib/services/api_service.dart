@@ -5,6 +5,9 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../utils/network_discovery.dart';
+import '../utils/error_messages.dart';
+import '../utils/performance_monitor.dart';
+import 'socket_service.dart';
 
 class ApiService {
   
@@ -14,6 +17,16 @@ class ApiService {
   static Future<void> initializeToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
+  }
+  
+  // Helper method to handle API errors with specific messages
+  static String _handleApiError(http.Response response, String operation) {
+    try {
+      final errorData = json.decode(response.body);
+      return ErrorMessages.getOperationErrorMessage(operation, errorData);
+    } catch (e) {
+      return ErrorMessages.getHttpErrorMessage(response.statusCode);
+    }
   }
   
   // Test connection to backend with automatic network discovery
@@ -125,14 +138,15 @@ class ApiService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return data;
       } else {
-        String errorMessage = data['message'] ?? 'An error occurred';
+        // Use the new error handling system
+        String errorMessage = _handleApiError(response, 'general');
         
         // Handle specific error cases with user-friendly messages
         if (response.statusCode == 400) {
-          if (errorMessage.toLowerCase().contains('validation')) {
-            errorMessage = 'Please check your input and try again';
-          } else if (errorMessage.toLowerCase().contains('email')) {
-            errorMessage = 'Please enter a valid email address';
+          if (data['message']?.toString().toLowerCase().contains('validation') == true) {
+            errorMessage = ErrorMessages.validationFailed;
+          } else if (data['message']?.toString().toLowerCase().contains('email') == true) {
+            errorMessage = ErrorMessages.invalidEmail;
           }
           // Keep original message for other 400 errors
         } else if (response.statusCode == 401) {
@@ -166,50 +180,66 @@ class ApiService {
     required String email,
     required String password,
   }) async {
-    if (ApiConfig.enableLogging) {
-      print('🔐 Attempting login for: $email');
-    }
-    
-    // Ensure we have a working connection before attempting login
-    bool connectionEstablished = await testConnection();
-    if (!connectionEstablished) {
-      throw ApiException(
-        message: 'Unable to connect to server. Please check your internet connection.',
-        statusCode: 0,
-        errors: null,
-      );
-    }
-    
-    if (ApiConfig.enableLogging) {
-      print('🌐 API URL: ${ApiConfig.safeBaseUrl}/auth/login');
-    }
-    
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.safeBaseUrl}/auth/login'),
-        headers: _getHeaders(includeAuth: false),
-        body: json.encode({
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(ApiConfig.timeout);
+    return ApiPerformanceMonitor.monitorApiCall(
+      'auth/login',
+      'POST',
+      () async {
+        if (ApiConfig.enableLogging) {
+          print('🔐 Attempting login for: $email');
+        }
+        
+        // Ensure we have a working connection before attempting login
+        bool connectionEstablished = await testConnection();
+        if (!connectionEstablished) {
+          throw ApiException(
+            message: ErrorMessages.connectionRefused,
+            statusCode: 0,
+            errors: null,
+          );
+        }
+        
+        if (ApiConfig.enableLogging) {
+          print('🌐 API URL: ${ApiConfig.safeBaseUrl}/auth/login');
+        }
+        
+        try {
+          final response = await http.post(
+            Uri.parse('${ApiConfig.safeBaseUrl}/auth/login'),
+            headers: _getHeaders(includeAuth: false),
+            body: json.encode({
+              'email': email,
+              'password': password,
+            }),
+          ).timeout(ApiConfig.timeout);
       
       final data = _handleResponse(response);
       
       if (data['token'] != null) {
         await saveToken(data['token']);
+        
+        // Store user ID for Socket.IO connection
+        if (data['user'] != null && data['user']['_id'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_id', data['user']['_id']);
+          
+          // Update Socket.IO connection with user ID
+          await SocketService.updateUserId(data['user']['_id']);
+        }
+        
         if (ApiConfig.enableLogging) {
-          print('✅ Login successful, token saved');
+          print('✅ Login successful, token and user ID saved');
         }
       }
       
-      return data;
-    } catch (e) {
-      if (ApiConfig.enableLogging) {
-        print('❌ Login error: $e');
+        return data;
+      } catch (e) {
+        if (ApiConfig.enableLogging) {
+          print('❌ Login error: $e');
+        }
+        rethrow;
       }
-      rethrow;
-    }
+    },
+    );
   }
 
   static Future<Map<String, dynamic>> verifyEmail({
@@ -434,6 +464,14 @@ class ApiService {
     );
     
     await clearToken();
+    
+    // Disconnect from Socket.IO
+    await SocketService.disconnect();
+    
+    // Clear user ID from storage
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_id');
+    
     return _handleResponse(response);
   }
   
@@ -459,19 +497,124 @@ class ApiService {
   }
   
   static Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('${ApiConfig.safeBaseUrl}/users/upload-avatar'),
+    try {
+      // Test network connectivity first
+      if (ApiConfig.enableLogging) {
+        print('🌐 Testing network connectivity...');
+      }
+      
+      try {
+        final healthResponse = await http.get(
+          Uri.parse('${ApiConfig.safeBaseUrl.replaceAll('/api', '')}/api/health'),
+        ).timeout(Duration(seconds: 5));
+        
+        if (ApiConfig.enableLogging) {
+          print('🌐 Health check status: ${healthResponse.statusCode}');
+        }
+        
+        if (healthResponse.statusCode != 200) {
+          throw Exception('Server not reachable (health check failed)');
+        }
+      } catch (healthError) {
+        if (ApiConfig.enableLogging) {
+          print('🌐 Health check failed: $healthError');
+        }
+        throw Exception('Cannot connect to server. Please check your internet connection.');
+      }
+      
+      // Validate file exists
+      if (!await imageFile.exists()) {
+        throw Exception('Image file does not exist');
+      }
+      
+      // Validate file size
+      final fileSize = await imageFile.length();
+      if (fileSize > 5 * 1024 * 1024) {
+        throw Exception('Image file is too large (max 5MB)');
+      }
+      
+      if (fileSize == 0) {
+        throw Exception('Image file is empty');
+      }
+      
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConfig.safeBaseUrl}/users/upload-avatar'),
+      );
+      
+      request.headers.addAll(_getMultipartHeaders());
+      
+      // Add image file with proper content type
+      final multipartFile = await http.MultipartFile.fromPath(
+        'profileImage',
+        imageFile.path,
+        contentType: MediaType('image', 'jpeg'), // Default to JPEG, will be overridden by actual file type
+      );
+      
+      request.files.add(multipartFile);
+      
+      if (ApiConfig.enableLogging) {
+        print('📤 Uploading profile image: ${imageFile.path}');
+        print('📤 File size: ${fileSize} bytes');
+        print('📤 Request URL: ${request.url}');
+        print('📤 Headers: ${request.headers}');
+      }
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (ApiConfig.enableLogging) {
+        print('📥 Upload response status: ${response.statusCode}');
+        print('📥 Upload response body: ${response.body}');
+      }
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (ApiConfig.enableLogging) {
+        print('❌ Upload profile image error: $e');
+        print('❌ Error type: ${e.runtimeType}');
+      }
+      
+      // Provide more specific error messages
+      if (e.toString().contains('SocketException')) {
+        throw Exception('Network connection failed. Please check your internet connection.');
+      } else if (e.toString().contains('TimeoutException')) {
+        throw Exception('Upload timed out. Please try again.');
+      } else if (e.toString().contains('FormatException')) {
+        throw Exception('Invalid image format. Please select a valid image file.');
+      } else if (e.toString().contains('FileSystemException')) {
+        throw Exception('Image file not accessible. Please try selecting the image again.');
+      } else if (e.toString().contains('HttpException')) {
+        throw Exception('Server error. Please try again later.');
+      } else {
+        rethrow;
+      }
+    }
+  }
+  
+  // Get user profile by ID
+  static Future<Map<String, dynamic>> getUserProfile(String userId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.safeBaseUrl}/users/profile/$userId'),
+      headers: _getHeaders(includeAuth: false),
     );
     
-    request.headers.addAll(_getMultipartHeaders());
-    request.files.add(
-      await http.MultipartFile.fromPath('profileImage', imageFile.path),
+    return _handleResponse(response);
+  }
+  
+  // Get user's recipes
+  static Future<Map<String, dynamic>> getUserRecipes(String userId, {
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/users/recipes/$userId').replace(
+      queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
     );
     
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-    
+    final response = await http.get(uri, headers: _getHeaders(includeAuth: false));
     return _handleResponse(response);
   }
   
@@ -486,6 +629,10 @@ class ApiService {
     String sort = 'createdAt',
     String order = 'desc',
   }) async {
+    return ApiPerformanceMonitor.monitorApiCall(
+      'recipes',
+      'GET',
+      () async {
     final queryParams = {
       'page': page.toString(),
       'limit': limit.toString(),
@@ -498,12 +645,14 @@ class ApiService {
     if (search != null) queryParams['search'] = search;
     if (creatorId != null) queryParams['creator'] = creatorId;
     
-    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/recipes').replace(
-      queryParameters: queryParams,
+        final uri = Uri.parse('${ApiConfig.safeBaseUrl}/recipes').replace(
+          queryParameters: queryParams,
+        );
+        
+        final response = await http.get(uri, headers: _getHeaders(includeAuth: false));
+        return _handleResponse(response);
+      },
     );
-    
-    final response = await http.get(uri, headers: _getHeaders(includeAuth: false));
-    return _handleResponse(response);
   }
   
   static Future<Map<String, dynamic>> getRecipe(String recipeId) async {
@@ -833,6 +982,111 @@ class ApiService {
         'selectedRecipes': selectedRecipes,
         'userIngredients': userIngredients,
       }),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // ========================================
+  // PROGRESSIVE INGREDIENT SCANNING APIs
+  // ========================================
+  
+  // Scan a single ingredient and add to session
+  static Future<Map<String, dynamic>> scanSingleIngredient(File imageFile) async {
+    if (ApiConfig.enableLogging) {
+      print('🥬 [Progressive] Scanning single ingredient...');
+      print('📂 Image path: ${imageFile.path}');
+    }
+    
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/single'),
+    );
+    
+    request.headers.addAll(_getMultipartHeaders());
+    
+    final multipartFile = await http.MultipartFile.fromPath(
+      'scanImage',
+      imageFile.path,
+      contentType: MediaType('image', 'jpeg'),
+    );
+    
+    request.files.add(multipartFile);
+    
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    
+    return _handleResponse(response);
+  }
+
+  // Get current ingredient scanning session
+  static Future<Map<String, dynamic>> getIngredientSession() async {
+    if (ApiConfig.enableLogging) {
+      print('📦 Getting ingredient session...');
+    }
+    
+    final response = await http.get(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/session'),
+      headers: _getHeaders(),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Manually add an ingredient (no scan)
+  static Future<Map<String, dynamic>> addManualIngredient(String ingredientName) async {
+    if (ApiConfig.enableLogging) {
+      print('✏️ [Progressive] Manually adding ingredient: $ingredientName');
+    }
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/add-manual'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'ingredientName': ingredientName,
+      }),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Remove an ingredient from the session
+  static Future<Map<String, dynamic>> removeIngredient(String ingredientName) async {
+    if (ApiConfig.enableLogging) {
+      print('🗑️ [Progressive] Removing ingredient: $ingredientName');
+    }
+    
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/${Uri.encodeComponent(ingredientName)}'),
+      headers: _getHeaders(),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Get recipe suggestions from current ingredient session
+  static Future<Map<String, dynamic>> getRecipesFromIngredients() async {
+    if (ApiConfig.enableLogging) {
+      print('🍳 [Progressive] Getting recipes from ingredient session...');
+    }
+    
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/get-recipes'),
+      headers: _getHeaders(),
+    ).timeout(ApiConfig.timeout);
+    
+    return _handleResponse(response);
+  }
+
+  // Clear ingredient scanning session (start over)
+  static Future<Map<String, dynamic>> clearIngredientSession() async {
+    if (ApiConfig.enableLogging) {
+      print('🧹 [Progressive] Clearing ingredient session...');
+    }
+    
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/session'),
+      headers: _getHeaders(),
     ).timeout(ApiConfig.timeout);
     
     return _handleResponse(response);

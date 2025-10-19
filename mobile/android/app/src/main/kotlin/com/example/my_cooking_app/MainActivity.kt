@@ -1,4 +1,4 @@
-package com.example.my_cooking_app
+package com.example.Scan2Suggest_app
 
 import io.flutter.embedding.android.FlutterActivity
 

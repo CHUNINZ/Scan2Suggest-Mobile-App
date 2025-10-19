@@ -3,7 +3,7 @@ class ApiConfig {
   // ========================================
   // 🔧 CHANGE THIS IP ADDRESS WHEN SWITCHING WIFI NETWORKS
   // ========================================
-  static const String BACKEND_IP = '192.168.194.185'; // <-- UPDATE THIS IP ONLY
+  static const String BACKEND_IP = '192.168.0.105'; // <-- UPDATE THIS IP ONLY
   static const String BACKEND_PORT = '3000';
   
   // Primary backend URL (constructed from IP above)
@@ -14,7 +14,7 @@ class ApiConfig {
     primaryBackendUrl, // Primary IP from above
     'http://10.0.2.2:$BACKEND_PORT/api', // Android emulator host
     'http://localhost:$BACKEND_PORT/api', // iOS simulator
-    'http://192.168.194.185:$BACKEND_PORT/api', // Alternative IP
+    'http://192.168.0.105:$BACKEND_PORT/api', // Alternative IP
     'http://192.168.194.169:$BACKEND_PORT/api', // Device subnet with common host
     'http://192.168.192.39:$BACKEND_PORT/api', // Device subnet range
     'http://192.168.192.105:$BACKEND_PORT/api', // Device subnet range

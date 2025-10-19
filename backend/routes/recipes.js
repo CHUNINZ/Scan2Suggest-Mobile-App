@@ -415,6 +415,21 @@ router.post('/:id/bookmark', auth, async (req, res) => {
       await User.findByIdAndUpdate(userId, {
         $addToSet: { bookmarkedRecipes: recipe._id }
       });
+
+      // Send notification to recipe creator
+      if (recipe.creator.toString() !== userId.toString()) {
+        const io = req.app.get('io');
+        io.to(`user_${recipe.creator}`).emit('notification', {
+          type: 'bookmark',
+          message: `${req.user.name} bookmarked your recipe "${recipe.title}"`,
+          data: { recipeId: recipe._id },
+          sender: {
+            _id: req.user._id,
+            name: req.user.name,
+            profileImage: req.user.profileImage
+          }
+        });
+      }
     }
 
     await recipe.save();

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'search_page.dart';
 import 'recipe_details_page.dart';
 import 'camera_scan_page.dart';
+import 'progressive_ingredient_scan_page.dart';
 import 'user_profile_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
@@ -458,16 +459,32 @@ class _HomePageState extends State<HomePage>
   void _selectScanOption(String option) {
     try {
       HapticFeedback.selectionClick();
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CameraScanPage(scanType: option),
-        ),
-      ).catchError((error) {
-        if (mounted) {
-          _showSnackBar('Unable to open camera. Please try again.');
-        }
-      });
+      
+      // If ingredient scan, go directly to Progressive Ingredient Scan
+      if (option.toLowerCase() == 'ingredient') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ProgressiveIngredientScanPage(),
+          ),
+        ).catchError((error) {
+          if (mounted) {
+            _showSnackBar('Unable to open ingredient scanner. Please try again.');
+          }
+        });
+      } else {
+        // For food scan, use the regular camera scan
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CameraScanPage(scanType: option),
+          ),
+        ).catchError((error) {
+          if (mounted) {
+            _showSnackBar('Unable to open camera. Please try again.');
+          }
+        });
+      }
     } catch (error) {
       _showSnackBar('Unable to open scanner. Please check your permissions.');
     }

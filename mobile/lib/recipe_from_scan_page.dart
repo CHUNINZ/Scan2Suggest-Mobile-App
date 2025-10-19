@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'app_theme.dart';
 
 class RecipeFromScanPage extends StatefulWidget {
   final String foodName;

@@ -2,71 +2,104 @@ const axios = require('axios');
 
 class RoboflowService {
   constructor() {
-    this.apiKey = process.env.ROBOFLOW_API_KEY || 'Wh2lwtFofEq4R0pgNmiw';
-    this.apiUrl = 'https://serverless.roboflow.com/filipino-food-datasets-kd7d6/1';
-    this.isConfigured = !!this.apiKey;
+    // Food detection API
+    this.foodApiKey = process.env.ROBOFLOW_FOOD_API_KEY || 'Wh2lwtFofEq4R0pgNmiw';
+    this.foodApiUrl = 'https://serverless.roboflow.com/filipino-food-datasets-kd7d6/1';
+    
+    // Ingredient detection API (specialized)
+    this.ingredientApiKey = process.env.ROBOFLOW_INGREDIENT_API_KEY || 'sK6jDsSmdvh6aQ5a0Ea9';
+    this.ingredientApiUrl = 'https://serverless.roboflow.com/ingredients-detector-tqvxr/3';
+    
+    this.isConfigured = !!(this.foodApiKey && this.ingredientApiKey);
     
     if (!this.isConfigured) {
-      console.error('❌ ROBOFLOW_API_KEY not configured. Food detection will fail.');
+      console.error('❌ ROBOFLOW API KEYS not configured. Detection will fail.');
     } else {
-      console.log('✅ Roboflow AI service initialized with API key');
+      console.log('✅ Roboflow AI service initialized');
+      console.log('   🍽️  Food API: Filipino Food Dataset');
+      console.log('   🥬 Ingredient API: Ingredients Detector');
     }
   }
 
   async analyzeFood(imageBuffer, scanType) {
-    // Use Roboflow API, send base64 buffer in body, api_key as url param
+    // Use appropriate Roboflow API based on scan type
     try {
       const base64Image = imageBuffer.toString('base64');
-      console.log('[Roboflow] (base64 POST) Sending image to Roboflow API, length:', base64Image.length);
+      
+      // Select API based on scan type
+      const isIngredientScan = scanType === 'ingredient';
+      const apiUrl = isIngredientScan ? this.ingredientApiUrl : this.foodApiUrl;
+      const apiKey = isIngredientScan ? this.ingredientApiKey : this.foodApiKey;
+      const apiName = isIngredientScan ? 'Ingredient Detector' : 'Filipino Food Dataset';
+      
+      console.log(`[Roboflow] 🔍 Using ${apiName} API for ${scanType} scan`);
+      console.log('[Roboflow] 📤 Sending base64 image, length:', base64Image.length);
+      
       const response = await axios({
         method: 'POST',
-        url: 'https://serverless.roboflow.com/filipino-food-datasets-kd7d6/1',
+        url: apiUrl,
         params: {
-          api_key: 'Wh2lwtFofEq4R0pgNmiw'
+          api_key: apiKey
         },
         data: base64Image,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
+      
+      console.log(`[Roboflow] ✅ ${apiName} response received`);
       return this.formatRoboflowResponse(response.data, scanType);
     } catch (error) {
-      console.error('❌ Roboflow API error (base64 POST):', error.message);
+      console.error('❌ Roboflow API error:', error.message);
+      if (error.response) {
+        console.error('   Response status:', error.response.status);
+        console.error('   Response data:', error.response.data);
+      }
       throw new Error(`Roboflow API failed: ${error.message}`);
     }
   }
 
   formatRoboflowResponse(roboflowData, scanType) {
-    console.log('🔍 Formatting Roboflow response:', JSON.stringify(roboflowData, null, 2));
+    console.log('🔍 Formatting Roboflow response for', scanType, 'scan');
+    console.log('📊 Raw predictions:', JSON.stringify(roboflowData?.predictions?.length || 0, null, 2));
     
     if (!roboflowData || !roboflowData.predictions || !Array.isArray(roboflowData.predictions)) {
       console.warn('⚠️ Invalid Roboflow response format');
       return [];
     }
 
+    // Different confidence thresholds for different scan types
+    const confidenceThreshold = scanType === 'ingredient' ? 0.05 : 0.1;
+    
     // Roboflow returns predictions with class, confidence, and bounding box info
     const formattedItems = roboflowData.predictions
-      .filter(item => item.confidence > 0.1) // Filter out low confidence predictions
-      .map((item) => ({
-        name: this.formatFoodName(item.class || 'Unknown Food'),
-        confidence: Math.round(item.confidence * 100) / 100,
-        category: this.categorizeFood(item.class || 'food'),
-        boundingBox: {
-          x: item.x || 0,
-          y: item.y || 0,
-          width: item.width || 150,
-          height: item.height || 100
-        }
-      }))
-      .slice(0, 5); // Limit to top 5 predictions
+      .filter(item => item.confidence > confidenceThreshold)
+      .map((item) => {
+        const itemName = scanType === 'ingredient' 
+          ? this.formatIngredientName(item.class || 'Unknown Ingredient')
+          : this.formatFoodName(item.class || 'Unknown Food');
+        
+        return {
+          name: itemName,
+          confidence: Math.round(item.confidence * 100) / 100,
+          category: this.categorizeFood(item.class || 'food'),
+          boundingBox: {
+            x: item.x || 0,
+            y: item.y || 0,
+            width: item.width || 150,
+            height: item.height || 100
+          }
+        };
+      })
+      .slice(0, scanType === 'ingredient' ? 10 : 5); // More items for ingredients
     
-    console.log('✨ Formatted Roboflow predictions:', formattedItems);
+    console.log(`✨ Formatted ${formattedItems.length} ${scanType} predictions`);
     
     return formattedItems;
   }
 
   formatFoodName(className) {
-    // Convert class names to user-friendly format
+    // Convert class names to user-friendly format for FOOD
     const nameMap = {
       'adobo': 'Chicken Adobo',
       'lechon': 'Lechon',
@@ -88,34 +121,77 @@ class RoboflowService {
       'vegetable_salad': 'Vegetable Salad',
       'noodle_soup': 'Noodle Soup',
       'grilled_chicken': 'Grilled Chicken',
-      'steamed_fish': 'Steamed Fish',
-      'tomato': 'Tomato',
-      'onion': 'Onion',
-      'garlic': 'Garlic',
-      'carrot': 'Carrot',
-      'potato': 'Potato',
-      'cabbage': 'Cabbage',
-      'lettuce': 'Lettuce',
-      'spinach': 'Spinach',
-      'broccoli': 'Broccoli',
-      'apple': 'Apple',
-      'banana': 'Banana',
-      'orange': 'Orange',
-      'mango': 'Mango',
-      'pineapple': 'Pineapple',
-      'coconut': 'Coconut',
-      'lemon': 'Lemon',
-      'lime': 'Lime',
-      'chicken': 'Chicken',
-      'pork': 'Pork',
-      'beef': 'Beef',
-      'fish': 'Fish',
-      'shrimp': 'Shrimp',
-      'crab': 'Crab'
+      'steamed_fish': 'Steamed Fish'
     };
     
     const cleanName = className.toLowerCase().replace(/[_-]/g, '_');
     return nameMap[cleanName] || this.capitalizeWords(className);
+  }
+
+  formatIngredientName(className) {
+    // Convert class names to user-friendly format for INGREDIENTS
+    // The ingredient API might return different class names
+    const ingredientMap = {
+      'tomato': 'Tomato',
+      'tomatoes': 'Tomato',
+      'onion': 'Onion',
+      'onions': 'Onion',
+      'garlic': 'Garlic',
+      'garlic_clove': 'Garlic',
+      'garlic_cloves': 'Garlic',
+      'carrot': 'Carrot',
+      'carrots': 'Carrot',
+      'potato': 'Potato',
+      'potatoes': 'Potato',
+      'cabbage': 'Cabbage',
+      'lettuce': 'Lettuce',
+      'spinach': 'Spinach',
+      'broccoli': 'Broccoli',
+      'bell_pepper': 'Bell Pepper',
+      'bell_peppers': 'Bell Pepper',
+      'pepper': 'Pepper',
+      'chili': 'Chili Pepper',
+      'ginger': 'Ginger',
+      'lemon': 'Lemon',
+      'lime': 'Lime',
+      'calamansi': 'Calamansi',
+      'chicken': 'Chicken',
+      'chicken_breast': 'Chicken Breast',
+      'chicken_thigh': 'Chicken Thigh',
+      'pork': 'Pork',
+      'pork_belly': 'Pork Belly',
+      'beef': 'Beef',
+      'ground_beef': 'Ground Beef',
+      'fish': 'Fish',
+      'shrimp': 'Shrimp',
+      'prawns': 'Shrimp',
+      'crab': 'Crab',
+      'egg': 'Egg',
+      'eggs': 'Egg',
+      'rice': 'Rice',
+      'noodles': 'Noodles',
+      'pasta': 'Pasta',
+      'soy_sauce': 'Soy Sauce',
+      'vinegar': 'Vinegar',
+      'salt': 'Salt',
+      'pepper': 'Pepper',
+      'oil': 'Cooking Oil',
+      'cooking_oil': 'Cooking Oil',
+      'flour': 'Flour',
+      'sugar': 'Sugar',
+      'banana': 'Banana',
+      'apple': 'Apple',
+      'orange': 'Orange',
+      'mango': 'Mango',
+      'pineapple': 'Pineapple',
+      'coconut': 'Coconut',
+      'milk': 'Milk',
+      'coconut_milk': 'Coconut Milk',
+      'butter': 'Butter'
+    };
+    
+    const cleanName = className.toLowerCase().replace(/[_-]/g, '_');
+    return ingredientMap[cleanName] || this.capitalizeWords(className);
   }
 
   capitalizeWords(str) {

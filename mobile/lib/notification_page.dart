@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'camera_scan_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'models/notification_model.dart';

@@ -1,4 +1,4 @@
-# my_cooking_app
+# Scan2Suggest_app
 
 A new Flutter project.
 

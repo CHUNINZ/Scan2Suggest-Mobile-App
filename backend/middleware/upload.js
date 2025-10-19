@@ -47,8 +47,15 @@ const fileFilter = (req, file, cb) => {
   
   // Check file type
   if (file.mimetype.startsWith('image/')) {
-    console.log('✅ File accepted');
-    cb(null, true);
+    // Additional validation for common image types
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      console.log('✅ File accepted - valid image type');
+      cb(null, true);
+    } else {
+      console.log('❌ File rejected - unsupported image type:', file.mimetype);
+      cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed!'), false);
+    }
   } else {
     console.log('❌ File rejected - not an image. Mimetype:', file.mimetype);
     cb(new Error('Only image files are allowed!'), false);
