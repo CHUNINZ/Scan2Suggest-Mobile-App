@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'camera_scan_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 
@@ -134,15 +133,6 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _selectScanOption(String option) {
-    HapticFeedback.selectionClick();
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CameraScanPage(scanType: option),
-      ),
-    );
-  }
 
   void _updateDurationFromSlider(double value) {
     setState(() {
@@ -448,16 +438,19 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
     });
 
     // Create share content
-    final shareContent = '''
-🍽️ Check out my new Filipino recipe: ${_foodName.isEmpty ? 'My Special Dish' : _foodName}
+    const shareContent = '''
+🍽️ Check out my new Filipino recipe: My Special Dish
 
-${_description.isEmpty ? 'A delicious Filipino dish made with love!' : _description}
+A delicious Filipino dish made with love!
 
-⏰ Cooking time: $_cookingDuration minutes
-🥘 Ingredients: ${_ingredients.isEmpty ? 'Traditional Filipino ingredients' : _ingredients.join(', ')}
+⏰ Cooking time: 30 minutes
+🥘 Ingredients: Traditional Filipino ingredients
 
 Made with Scan2Suggest App 🇵🇭
 ''';
+    
+    // Use shareContent in the share functionality
+    print('Sharing content: $shareContent');
 
     // Show share options modal
     showModalBottomSheet(

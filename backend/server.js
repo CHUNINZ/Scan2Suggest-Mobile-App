@@ -78,8 +78,10 @@ app.set('io', io);
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users')); // FIXED: Added missing users route
 app.use('/api/recipes', require('./routes/recipes'));
 app.use('/api/scan', require('./routes/scan'));
+app.use('/api/upload', require('./routes/upload')); // FIXED: Added missing upload route
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/social', require('./routes/social'));
 
@@ -92,6 +94,53 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime()
   });
 });
+
+// Email service test endpoint (development only)
+if (process.env.NODE_ENV === 'development') {
+  app.post('/api/test-email', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email address is required'
+        });
+      }
+
+      const emailService = require('./services/emailService');
+      const result = await emailService.sendTestEmail(email);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Test email error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  });
+
+  app.get('/api/email-status', async (req, res) => {
+    try {
+      const emailService = require('./services/emailService');
+      const result = await emailService.testConnection();
+      
+      res.json({
+        success: true,
+        emailService: result,
+        configured: !!process.env.EMAIL_USER && !!process.env.EMAIL_PASS,
+        environment: process.env.NODE_ENV
+      });
+    } catch (error) {
+      console.error('Email status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  });
+}
 
 // Root endpoint
 app.get('/', (req, res) => {

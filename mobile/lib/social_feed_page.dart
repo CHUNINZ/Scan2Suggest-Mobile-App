@@ -5,6 +5,7 @@ import 'user_profile_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
+import '../widgets/loading_skeletons.dart';
 
 class SocialFeedPage extends StatefulWidget {
   const SocialFeedPage({super.key});
@@ -150,6 +151,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       'isLiked': recipe['isLiked'] ?? false,
       'isBookmarked': recipe['isBookmarked'] ?? false,
       'createdAt': recipe['createdAt'],
+      'isFromFollowedUser': recipe['isFromFollowedUser'] ?? false, // Add this for UI indication
     };
   }
 
@@ -228,15 +230,31 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       final recipeId = recipe['id'];
       if (recipeId == null) return;
       
+      // Store the current state for debugging
+      final currentIsLiked = recipe['isLiked'] ?? false;
+      final currentLikesCount = recipe['likesCount'] ?? 0;
+      
+      print('🔄 Toggling like for recipe: $recipeId');
+      print('🔄 Current state - isLiked: $currentIsLiked, likesCount: $currentLikesCount');
+      
       final response = await ApiService.likeRecipe(recipeId.toString());
+      
+      print('📥 Like response: $response');
       
       if (response['success'] == true && mounted) {
         setState(() {
           // Update the recipe in the list
           final index = _recipes.indexWhere((r) => r['id'] == recipeId);
           if (index != -1) {
-            _recipes[index]['isLiked'] = response['isLiked'] ?? !_recipes[index]['isLiked'];
-            _recipes[index]['likesCount'] = response['likesCount'] ?? _recipes[index]['likesCount'];
+            final newIsLiked = response['isLiked'] ?? !_recipes[index]['isLiked'];
+            final newLikesCount = response['likesCount'] ?? _recipes[index]['likesCount'];
+            
+            _recipes[index]['isLiked'] = newIsLiked;
+            _recipes[index]['likesCount'] = newLikesCount;
+            
+            print('✅ Updated recipe at index $index - isLiked: $newIsLiked, likesCount: $newLikesCount');
+          } else {
+            print('❌ Recipe not found in list for ID: $recipeId');
           }
         });
         
@@ -247,8 +265,18 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
             duration: const Duration(seconds: 1),
           ),
         );
+      } else {
+        print('❌ Like request failed: ${response['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to like recipe: ${response['message'] ?? 'Unknown error'}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
+      print('❌ Like error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -312,8 +340,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
 
   Widget _buildBody() {
     if (_isLoading && _recipes.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppTheme.primaryDarkGreen),
+      return ListSkeleton(
+        itemCount: 5,
+        itemBuilder: (context, index) => const RecipeCardSkeleton(),
       );
     }
 
@@ -382,7 +411,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Follow users to see their recipes here!',
+                    'No recipes available yet. Check back later for new content!',
                     style: TextStyle(
                       fontSize: 16,
                       color: AppTheme.textSecondary.withOpacity(0.7),
@@ -458,7 +487,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                     child: creatorImageUrl == null
                         ? Text(
                             recipe['creator']?.toString().isNotEmpty == true
-                                ? recipe['creator'][0].toUpperCase()
+                                ? recipe['creator'].toString()[0].toUpperCase()
                                 : 'U',
                             style: const TextStyle(
                               fontSize: 16,
@@ -479,13 +508,39 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          recipe['creator'] ?? 'Unknown',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              recipe['creator'] ?? 'Unknown',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            if (recipe['isFromFollowedUser'] == true) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryDarkGreen.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppTheme.primaryDarkGreen.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Following',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.primaryDarkGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Text(
                           _getTimeAgo(recipe['createdAt']),

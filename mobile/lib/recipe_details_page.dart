@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'config/api_config.dart';
 import 'services/api_service.dart';
+import '../widgets/loading_skeletons.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -22,6 +23,15 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Debug: Print recipe data received
+    print('📄 RecipeDetailsPage initialized with:');
+    print('   Title: ${widget.recipe['title']}');
+    print('   Name: ${widget.recipe['name']}');
+    print('   Description: ${widget.recipe['description']}');
+    print('   ID: ${widget.recipe['id']}');
+    print('   All keys: ${widget.recipe.keys.toList()}');
+    
     // Initialize from recipe data
     _isLiked = widget.recipe['isLiked'] ?? false;
     _isBookmarked = widget.recipe['isBookmarked'] ?? false;
@@ -308,6 +318,50 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     return '$baseUrl$imageStr'; // imageStr should start with /uploads/...
   }
 
+  String _getCreatorInitial() {
+    try {
+      final creator = widget.recipe['creator'];
+      if (creator == null) return 'E';
+      
+      // If creator is a string
+      if (creator is String) {
+        return creator.isNotEmpty ? creator[0].toUpperCase() : 'E';
+      }
+      
+      // If creator is an object with name property
+      if (creator is Map && creator['name'] != null) {
+        final name = creator['name'].toString();
+        return name.isNotEmpty ? name[0].toUpperCase() : 'E';
+      }
+      
+      return 'E';
+    } catch (e) {
+      return 'E';
+    }
+  }
+
+  String _getCreatorName() {
+    try {
+      final creator = widget.recipe['creator'];
+      if (creator == null) return 'Unknown';
+      
+      // If creator is a string
+      if (creator is String) {
+        return creator;
+      }
+      
+      // If creator is an object with name property
+      if (creator is Map && creator['name'] != null) {
+        return creator['name'].toString();
+      }
+      
+      return 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -429,7 +483,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                       children: [
                         // Recipe Title
                         Text(
-                          widget.recipe['name'] ?? 'Cacao Maca Walnut Milk',
+                          widget.recipe['title'] ?? widget.recipe['name'] ?? 'Untitled Recipe',
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -477,9 +531,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                               radius: 24,
                               backgroundColor: Colors.green.shade400,
                               child: Text(
-                                widget.recipe['creator']?.toString().isNotEmpty == true 
-                                    ? widget.recipe['creator'][0].toUpperCase()
-                                    : 'E',
+                                _getCreatorInitial(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
@@ -493,7 +545,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.recipe['creator'] ?? 'Elena Shelby',
+                                    _getCreatorName(),
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
@@ -588,7 +640,6 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                         ),
                         const SizedBox(height: 16),
                         ..._ingredients.asMap().entries.map((entry) {
-                          int index = entry.key;
                           Map<String, dynamic> ingredient = entry.value;
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),

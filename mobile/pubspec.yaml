@@ -28,6 +28,12 @@ dependencies:
   
   # Time formatting
   timeago: ^3.6.0
+  
+  # Real-time communication
+  socket_io_client: ^2.0.3+1
+  
+  # Loading animations
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +46,7 @@ flutter:
   # App assets
   assets:
     - assets/images/
+    - assets/icons/
     - assets/images/image1.jpg
     - assets/images/image2.jpg
     - assets/images/image3.jpg

@@ -4,6 +4,7 @@ import 'camera_scan_page.dart';
 import 'notification_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
+import 'services/socket_service.dart';
 import 'dart:async';
 
 class MainScaffold extends StatefulWidget {
@@ -42,6 +43,7 @@ class _MainScaffoldState extends State<MainScaffold>
   // Real-time notification count
   int _unreadNotificationCount = 0;
   Timer? _notificationTimer;
+  StreamSubscription<Map<String, dynamic>>? _notificationSubscription;
 
   @override
   void initState() {
@@ -76,7 +78,16 @@ class _MainScaffoldState extends State<MainScaffold>
     // Load initial notification count
     _loadNotificationCount();
     
-    // Poll for updates every 30 seconds
+    // Set up real-time notification listener
+    _notificationSubscription = SocketService.notificationStream.listen((notification) {
+      print('🔔 Real-time notification received: $notification');
+      _loadNotificationCount(); // Refresh count when new notification arrives
+      
+      // Show notification banner (optional)
+      _showNotificationBanner(notification);
+    });
+    
+    // Poll for updates every 30 seconds as backup
     _notificationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _loadNotificationCount();
     });
@@ -101,12 +112,51 @@ class _MainScaffoldState extends State<MainScaffold>
       print('❌ Failed to load notification count: $e');
     }
   }
+  
+  void _showNotificationBanner(Map<String, dynamic> notification) {
+    if (!mounted) return;
+    
+    // Show a subtle banner notification
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.notifications, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                notification['message'] ?? 'New notification',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.primaryDarkGreen,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        action: SnackBarAction(
+          label: 'View',
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const NotificationPage()),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
     _overlayAnimationController.dispose();
     _fadeAnimationController.dispose();
     _notificationTimer?.cancel();
+    _notificationSubscription?.cancel();
     super.dispose();
   }
 
@@ -365,8 +415,8 @@ class _MainScaffoldState extends State<MainScaffold>
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _buildNavItem(0, Icons.dynamic_feed, Icons.dynamic_feed_outlined, 'Feed'),
-                        _buildNavItem(1, Icons.explore, Icons.explore_outlined, 'Discover'),
+                        _buildNavItem(0, 'assets/icons/open-menu.png', 'assets/icons/open-menu.png', 'Feed'),
+                        _buildNavItem(1, 'assets/icons/target.png', 'assets/icons/target.png', 'Discover'),
                         const SizedBox(width: 64), // Space for FAB
                         _buildNavItem(3, Icons.upload, Icons.upload_outlined, 'Upload'),
                         _buildNavItem(4, Icons.person, Icons.person_outline, 'Profile'),
@@ -437,9 +487,9 @@ class _MainScaffoldState extends State<MainScaffold>
   Widget _getAppBarIcon() {
     switch (widget.currentIndex) {
       case 0:
-        return const Icon(Icons.dynamic_feed, color: AppTheme.primaryDarkGreen, size: 28);
+        return Image.asset('assets/icons/open-menu.png', width: 28, height: 28, color: AppTheme.primaryDarkGreen);
       case 1:
-        return const Icon(Icons.explore, color: AppTheme.primaryDarkGreen, size: 28);
+        return Image.asset('assets/icons/target.png', width: 28, height: 28, color: AppTheme.primaryDarkGreen);
       case 2:
         return const Icon(Icons.document_scanner, color: AppTheme.primaryDarkGreen, size: 28);
       case 3:
@@ -451,7 +501,7 @@ class _MainScaffoldState extends State<MainScaffold>
     }
   }
 
-  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _buildNavItem(int index, dynamic activeIcon, dynamic inactiveIcon, String label) {
     final isSelected = widget.currentIndex == index;
     return Expanded(
       child: GestureDetector(
@@ -462,10 +512,9 @@ class _MainScaffoldState extends State<MainScaffold>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              _buildIcon(
                 isSelected ? activeIcon : inactiveIcon,
-                size: 22,
-                color: isSelected ? AppTheme.primaryDarkGreen : AppTheme.textSecondary,
+                isSelected ? AppTheme.primaryDarkGreen : AppTheme.textSecondary,
               ),
               const SizedBox(height: 4),
               Flexible(
@@ -488,6 +537,28 @@ class _MainScaffoldState extends State<MainScaffold>
     );
   }
 
+  Widget _buildIcon(dynamic icon, Color color) {
+    if (icon is String) {
+      // Custom icon from assets
+      return Image.asset(
+        icon,
+        width: 22,
+        height: 22,
+        color: color,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback to a default icon if the custom icon fails to load
+          return Icon(Icons.error, size: 22, color: color);
+        },
+      );
+    } else {
+      // Material Design icon
+      return Icon(
+        icon as IconData,
+        size: 22,
+        color: color,
+      );
+    }
+  }
 
   Widget _buildScanOption(String option, IconData icon, String subtitle, Color accentColor) {
     return GestureDetector(

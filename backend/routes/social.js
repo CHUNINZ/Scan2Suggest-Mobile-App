@@ -182,7 +182,7 @@ router.get('/following/:id', async (req, res) => {
 });
 
 // @route   GET /api/social/feed
-// @desc    Get user's social feed (recipes from followed users)
+// @desc    Get user's social feed (recipes from all users with smart ranking)
 // @access  Private
 router.get('/feed', auth, async (req, res) => {
   try {
@@ -191,36 +191,94 @@ router.get('/feed', auth, async (req, res) => {
 
     const user = await User.findById(req.user._id);
     const followingIds = user.following;
+    const userId = req.user._id;
 
-    // Only show recipes from users you follow, not your own
-    const recipes = await Recipe.find({
-      creator: { $in: followingIds },
+    // Get recipes from all users (excluding current user's own recipes)
+    const allRecipes = await Recipe.find({
+      creator: { $ne: userId }, // Exclude current user's recipes
       isPublished: true
     })
       .populate('creator', 'name profileImage')
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit) * 3); // Get more recipes for better ranking
 
-    // Add user interaction data
-    recipes.forEach(recipe => {
-      recipe._doc.isLiked = recipe.likes.includes(req.user._id);
-      recipe._doc.isBookmarked = recipe.bookmarks.includes(req.user._id);
+    // Apply smart ranking algorithm
+    const rankedRecipes = allRecipes.map(recipe => {
+      let score = 0;
+      const recipeData = recipe.toObject();
+      
+      
+      // Base score from creation time (newer = higher score)
+      const hoursSinceCreation = (Date.now() - new Date(recipe.createdAt).getTime()) / (1000 * 60 * 60);
+      score += Math.max(0, 100 - hoursSinceCreation); // Decay over time
+      
+      // Boost for followed users (like Facebook prioritizes friends)
+      if (recipe.creator && recipe.creator._id && followingIds.some(id => id.toString() === recipe.creator._id.toString())) {
+        score += 50; // Significant boost for followed users
+      }
+      
+      // Boost for engagement (likes, bookmarks)
+      score += recipe.likes.length * 2; // 2 points per like
+      score += recipe.bookmarks.length * 3; // 3 points per bookmark
+      
+      // Boost for recent engagement
+      const recentLikes = recipe.likes.filter(likeId => {
+        // This would need to be enhanced with actual like timestamps
+        return true; // For now, treat all likes as recent
+      });
+      score += recentLikes.length * 1;
+      
+      // Boost for popular categories (if user has preferences)
+      // This could be enhanced with user preference tracking
+      
+      // Small random factor to add variety
+      score += Math.random() * 5;
+      
+      recipeData._rankingScore = score;
+      return recipeData;
     });
 
+    // Sort by ranking score (highest first)
+    rankedRecipes.sort((a, b) => b._rankingScore - a._rankingScore);
+
+    // Apply pagination
+    const paginatedRecipes = rankedRecipes.slice(skip, skip + parseInt(limit));
+
+    // Add user interaction data
+    paginatedRecipes.forEach(recipe => {
+      // Convert userId to string for comparison
+      const userIdStr = userId.toString();
+      
+      // Check if user has liked this recipe
+      recipe.isLiked = recipe.likes.some(likeId => likeId.toString() === userIdStr);
+      recipe.isBookmarked = recipe.bookmarks.some(bookmarkId => bookmarkId.toString() === userIdStr);
+      recipe.likesCount = recipe.likes.length; // Add likes count
+      
+      recipe.isFromFollowedUser = recipe.creator && followingIds.some(id => id.toString() === recipe.creator._id.toString());
+      
+      // Remove the ranking score from final response
+      delete recipe._rankingScore;
+    });
+
+    // Get total count for pagination
     const total = await Recipe.countDocuments({
-      creator: { $in: followingIds },
+      creator: { $ne: userId },
       isPublished: true
     });
 
     res.json({
       success: true,
-      recipes,
+      recipes: paginatedRecipes,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
         pages: Math.ceil(total / limit)
+      },
+      feedInfo: {
+        totalRecipes: total,
+        followedUsersCount: followingIds.length,
+        algorithm: 'smart_ranking'
       }
     });
   } catch (error) {

@@ -141,11 +141,14 @@ class _SplashScreenState extends State<SplashScreen>
     Widget nextScreen;
     String navigationReason;
 
-    // Try auto-login using stored JWT token
+    // Try auto-login using stored JWT token with timeout
     await ApiService.initializeToken();
     try {
-      final user = await ApiService.getCurrentUser();
-      if (user != null && user['success'] == true) {
+      // Add timeout to prevent hanging indefinitely
+      final user = await ApiService.getCurrentUser()
+          .timeout(const Duration(seconds: 8)); // 8 second timeout
+      
+      if (user['success'] == true) {
         nextScreen = const MainNavigationController();
         navigationReason = 'autologin';
       } else {
@@ -153,7 +156,8 @@ class _SplashScreenState extends State<SplashScreen>
         navigationReason = 'first_launch';
       }
     } catch (e) {
-      // Token invalid or not present, go to onboarding
+      // Token invalid, timeout, or not present - go to onboarding
+      print('⚠️ Auto-login failed: $e');
       nextScreen = const Onboarding();
       navigationReason = 'first_launch';
     }

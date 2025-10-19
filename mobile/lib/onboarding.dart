@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:math';
 import 'signin.dart';
 import 'app_theme.dart';
 
@@ -39,73 +40,47 @@ class _OnboardingState extends State<Onboarding>
     'assets/images/image5.jpg',
   ];
 
-  // Food circles positioned across the entire screen area
-  final List<Map<String, dynamic>> _foodCircles = [
-    // Top left corner
-    {
-      'image': 'assets/images/image6.png',
-      'size': 115.0,
-      'left': 80.0,
-      'top': 120.0,
-      'animationOffset': 0.0,
-    },
-    // Top center
-    {
-      'image': 'assets/images/image7.png',
-      'size': 105.0,
-      'left': 210.0,
-      'top': 80.0,
-      'animationOffset': 1.0,
-    },
-    // Top right corner
-    {
-      'image': 'assets/images/image8.png',
-      'size': 120.0,
-      'left': 340.0,
-      'top': 120.0,
-      'animationOffset': 2.0,
-    },
-    // Middle left
-    {
-      'image': 'assets/images/image9.png',
-      'size': 100.0,
-      'left': 20.0,
-      'top': 250.0,
-      'animationOffset': 3.0,
-    },
-    // Center (main focal point)
-    {
-      'image': 'assets/images/image10.png',
-      'size': 160.0,
-      'left': 190.0,
-      'top': 210.0,
-      'animationOffset': 4.0,
-    },
-    // Middle right
-    {
-      'image': 'assets/images/image11.png',
-      'size': 110.0,
-      'left': 380.0,
-      'top': 260.0,
-      'animationOffset': 5.0,
-    },
-    // Bottom left
-    {
-      'image': 'assets/images/image12.png',
-      'size': 115.0,
-      'left': 100.0,
-      'top': 360.0,
-      'animationOffset': 6.0,
-    },
-    // Bottom right
-    {
-      'image': 'assets/images/image13.png',
-      'size': 120.0,
-      'left': 300.0,
-      'top': 370.0,
-      'animationOffset': 7.0,
-    },
-  ];
+  // Food circles positioned in a circular pattern around the screen
+  List<Map<String, dynamic>> _getFoodCircles(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+    
+    // Calculate responsive sizes based on screen dimensions
+    final baseSize = (screenWidth * 0.2).clamp(60.0, 150.0);
+    
+    // Center point of the screen (where the main content is)
+    final centerX = screenWidth * 0.5;
+    final centerY = screenHeight * 0.4; // Slightly above center to account for text
+    
+    // Radius of the circle (responsive to screen size)
+    final radius = (screenWidth * 0.35).clamp(120.0, 250.0);
+    
+    // Calculate positions in a circular pattern
+    final List<Map<String, dynamic>> circles = [];
+    
+    // 8 circles positioned around a circle
+    for (int i = 0; i < 8; i++) {
+      final angle = (i * 2 * 3.14159) / 8; // 45 degrees apart
+      final x = centerX + radius * cos(angle);
+      final y = centerY + radius * sin(angle);
+      
+      // Ensure circles stay within screen bounds
+      final circleSize = baseSize * (0.8 + (i % 3) * 0.1); // Vary sizes slightly
+      final clampedX = x.clamp(circleSize * 0.5, screenWidth - circleSize * 0.5);
+      final clampedY = y.clamp(circleSize * 0.5, screenHeight - circleSize * 0.5);
+      
+      circles.add({
+        'image': 'assets/images/image${6 + i}.png',
+        'size': circleSize,
+        'left': clampedX - circleSize * 0.5,
+        'top': clampedY - circleSize * 0.5,
+        'animationOffset': i.toDouble(),
+      });
+    }
+    
+    return circles;
+  }
 
   @override
   void initState() {
@@ -334,8 +309,9 @@ class _OnboardingState extends State<Onboarding>
   }
   
   Widget _buildStaticFoodCircles() {
+    final foodCircles = _getFoodCircles(context);
     return Stack(
-      children: _foodCircles.map((circle) {
+      children: foodCircles.map((circle) {
         return Positioned(
           left: circle['left'],
           top: circle['top'],

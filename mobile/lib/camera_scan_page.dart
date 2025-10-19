@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'services/api_service.dart';
 import 'enhanced_scan_results_page.dart';
 import 'ingredient_scan_results_page.dart';
+import 'progressive_ingredient_scan_page.dart';
 
 class CameraScanPage extends StatefulWidget {
   final String scanType; // 'Food' or 'Ingredient'
@@ -39,6 +40,22 @@ class _CameraScanPageState extends State<CameraScanPage>
   @override
   void initState() {
     super.initState();
+    
+    // If Ingredient scan, redirect to Progressive Ingredient Scan page immediately
+    if (widget.scanType.toLowerCase() == 'ingredient') {
+      // Use a more immediate redirect
+      Future.microtask(() {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ProgressiveIngredientScanPage(),
+            ),
+          );
+        }
+      });
+      return;
+    }
     
     // Scanning line animation
     _scanAnimationController = AnimationController(
@@ -89,9 +106,12 @@ class _CameraScanPageState extends State<CameraScanPage>
   @override
   void dispose() {
     _controller?.dispose();
-    _scanAnimationController.dispose();
-    _pulseAnimationController.dispose();
-    _detectionAnimationController.dispose();
+    // Only dispose animation controllers if they were initialized (not redirected)
+    if (widget.scanType.toLowerCase() != 'ingredient') {
+      _scanAnimationController.dispose();
+      _pulseAnimationController.dispose();
+      _detectionAnimationController.dispose();
+    }
     super.dispose();
   }
 
@@ -501,6 +521,23 @@ class _CameraScanPageState extends State<CameraScanPage>
 
   @override
   Widget build(BuildContext context) {
+    // If this is an ingredient scan, show a loading screen while redirecting
+    if (widget.scanType.toLowerCase() == 'ingredient') {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.green),
+              SizedBox(height: 16),
+              Text('Loading Progressive Scan...', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (!_isInitialized) {
       return Scaffold(
         backgroundColor: Colors.black,
@@ -541,47 +578,6 @@ class _CameraScanPageState extends State<CameraScanPage>
   }
 
 
-  Widget _buildGridOverlay() {
-    return Positioned.fill(
-      child: CustomPaint(
-        painter: GridPainter(opacity: 0.2),
-      ),
-    );
-  }
-
-  Widget _buildScanningLine() {
-    return AnimatedBuilder(
-      animation: _scanAnimation,
-      builder: (context, child) {
-        return Positioned(
-          top: MediaQuery.of(context).size.height * _scanAnimation.value,
-          left: 0,
-          right: 0,
-          child: Container(
-            height: 2,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  Colors.green,
-                  Colors.green.withOpacity(0.8),
-                  Colors.green,
-                  Colors.transparent,
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.5),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildRealtimeDetections() {
     return AnimatedBuilder(

@@ -7,8 +7,8 @@ class NetworkDiscovery {
   /// Automatically discover the backend server on the local network
   static Future<String?> discoverBackendUrl() async {
     // First try the known backend IP directly
-    if (await _testUrl('http://192.168.194.185:3000/api')) {
-      return 'http://192.168.194.185:3000/api';
+    if (await _testUrl('http://192.168.0.105:3000/api')) {
+      return 'http://192.168.0.105:3000/api';
     }
     
     // Get device's current network info and generate candidates
@@ -51,36 +51,22 @@ class NetworkDiscovery {
             if (subnet.length == 4) {
               String baseIp = '${subnet[0]}.${subnet[1]}.${subnet[2]}';
               
-              // Try a wider range of host addresses in the same subnet
-              // Also try common subnets (192.168.194.x, 192.168.192.x, etc.)
-              List<String> subnetBases = [baseIp];
+              // FIXED: Only try the same subnet, not 256 different subnets!
+              // Common computer IP addresses (most laptops/desktops use these)
+              List<int> hostRanges = [105, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 1, 167, 169];
               
-              // Add common subnet variations
-              if (baseIp.startsWith('192.168.')) {
-                for (int thirdOctet = 0; thirdOctet <= 255; thirdOctet++) {
-                  String altSubnet = '192.168.$thirdOctet';
-                  if (!subnetBases.contains(altSubnet)) {
-                    subnetBases.add(altSubnet);
-                  }
+              // Add device's host number and nearby IPs first (higher priority)
+              int deviceHost = int.tryParse(subnet[3]) ?? 0;
+              for (int offset = -5; offset <= 5; offset++) {
+                int nearbyHost = deviceHost + offset;
+                if (nearbyHost > 0 && nearbyHost < 255 && !hostRanges.contains(nearbyHost)) {
+                  hostRanges.insert(0, nearbyHost);
                 }
               }
               
-              for (String subnetBase in subnetBases) {
-                // Common computer IP ranges
-                List<int> hostRanges = [167, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110];
-                
-                // Add device's host number and nearby IPs
-                int deviceHost = int.tryParse(subnet[3]) ?? 0;
-                for (int offset = -10; offset <= 10; offset++) {
-                  int nearbyHost = deviceHost + offset;
-                  if (nearbyHost > 0 && nearbyHost < 255 && !hostRanges.contains(nearbyHost)) {
-                    hostRanges.insert(0, nearbyHost);
-                  }
-                }
-                
-                for (int host in hostRanges) {
-                  candidates.add('$subnetBase.$host');
-                }
+              // Only scan the SAME subnet (not all 256 subnets!)
+              for (int host in hostRanges.take(20)) { // Limit to first 20 IPs
+                candidates.add('$baseIp.$host');
               }
             }
           }
@@ -99,7 +85,7 @@ class NetworkDiscovery {
       final response = await http.get(
         Uri.parse('$url/health'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 1)); // Reduced to 1 second for faster discovery
       
       return response.statusCode == 200;
     } catch (e) {

@@ -10,8 +10,9 @@ import 'loading_transition.dart';
 import 'camera_scan_page.dart';
 import 'scan_results_page.dart';
 import 'app_theme.dart';
+import 'services/socket_service.dart';
 
-void main() {
+void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -30,6 +31,9 @@ void main() {
       return AppErrorWidget(errorDetails: errorDetails);
     };
   }
+  
+  // Initialize Socket.IO service
+  await SocketService.initialize();
   
   runApp(const MyApp());
 }

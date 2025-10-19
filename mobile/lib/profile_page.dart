@@ -6,6 +6,8 @@ import 'splash_screen.dart';
 import 'followers_list_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
+import 'config/api_config.dart';
+import '../widgets/loading_skeletons.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -113,7 +115,11 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             'email': user['email'] ?? '',
             'bio': user['bio'] ?? 'Food lover 🍴',
             'location': user['location'] ?? '',
-            'profileImageUrl': user['profileImage'],
+            'profileImageUrl': user['profileImage'] != null 
+                ? (user['profileImage'].startsWith('http') 
+                    ? user['profileImage'] 
+                    : '${ApiConfig.safeBaseUrl.replaceAll('/api', '')}${user['profileImage']}')
+                : null,
             'followersCount': (user['followers'] as List?)?.length ?? 0,
             'followingCount': (user['following'] as List?)?.length ?? 0,
             'recipesCount': user['stats']?['recipesCreated'] ?? 0,
@@ -259,7 +265,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   String? _getFullImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return null;
     if (imagePath.startsWith('http')) return imagePath;
-    return 'http://192.168.194.185:3000$imagePath';
+    return 'http://192.168.0.105:3000$imagePath';
   }
 
   String _formatJoinDate(String? dateStr) {
@@ -563,24 +569,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     if (_isLoadingProfile) {
       return Scaffold(
         backgroundColor: AppTheme.backgroundOffWhite,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                color: AppTheme.primaryDarkGreen,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Loading profile...',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
+        body: const UserProfileSkeleton(),
       );
     }
 
@@ -983,10 +972,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     
     if (_isLoadingRecipes) {
       return SliverFillRemaining(
-        child: Center(
-          child: CircularProgressIndicator(
-            color: AppTheme.primaryDarkGreen,
-          ),
+        child: GridSkeleton(
+          itemCount: 6,
+          itemBuilder: (context, index) => const RecipeCardSkeleton(),
         ),
       );
     }

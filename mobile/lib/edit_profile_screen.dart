@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'app_theme.dart';
 import 'services/api_service.dart';
+import 'config/api_config.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userProfile;
@@ -190,11 +191,28 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       );
       
       if (image != null) {
+        final file = File(image.path);
+        
+        // Validate file size (max 5MB)
+        final fileSize = await file.length();
+        if (fileSize > 5 * 1024 * 1024) {
+          _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
+          return;
+        }
+        
+        // Validate file exists and is readable
+        if (!await file.exists()) {
+          _showSnackBar('Selected image file is not accessible.');
+          return;
+        }
+        
         setState(() {
-          _newProfileImage = File(image.path);
+          _newProfileImage = file;
           _imageChanged = true;
           _hasUnsavedChanges = true;
         });
+        
+        _showSnackBar('Image selected successfully!', isSuccess: true);
       }
     } catch (e) {
       _showSnackBar('Error accessing camera: ${e.toString()}');
@@ -211,11 +229,28 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       );
       
       if (image != null) {
+        final file = File(image.path);
+        
+        // Validate file size (max 5MB)
+        final fileSize = await file.length();
+        if (fileSize > 5 * 1024 * 1024) {
+          _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
+          return;
+        }
+        
+        // Validate file exists and is readable
+        if (!await file.exists()) {
+          _showSnackBar('Selected image file is not accessible.');
+          return;
+        }
+        
         setState(() {
-          _newProfileImage = File(image.path);
+          _newProfileImage = file;
           _imageChanged = true;
           _hasUnsavedChanges = true;
         });
+        
+        _showSnackBar('Image selected successfully!', isSuccess: true);
       }
     } catch (e) {
       _showSnackBar('Error accessing gallery: ${e.toString()}');
@@ -354,16 +389,52 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       
       // Upload new profile image if changed
       if (_imageChanged && _newProfileImage != null) {
-        final uploadResponse = await ApiService.uploadProfileImage(_newProfileImage!);
-        
-        if (uploadResponse['success'] == true) {
-          newProfileImageUrl = uploadResponse['profileImageUrl'];
-        } else {
-          throw Exception(uploadResponse['message'] ?? 'Failed to upload image');
+        try {
+          // Test network connectivity first
+          _showSnackBar('Testing network connection...', isSuccess: true);
+          
+          final uploadResponse = await ApiService.uploadProfileImage(_newProfileImage!);
+          
+          if (uploadResponse['success'] == true) {
+            // Construct full URL from relative path
+            String imageUrl = uploadResponse['imageUrl'];
+            if (imageUrl.startsWith('/')) {
+              // Get base URL from API config
+              final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
+              newProfileImageUrl = '$baseUrl$imageUrl';
+            } else {
+              newProfileImageUrl = imageUrl;
+            }
+            
+            _showSnackBar('Profile image uploaded successfully!', isSuccess: true);
+          } else {
+            throw Exception(uploadResponse['message'] ?? 'Failed to upload image');
+          }
+        } catch (uploadError) {
+          String errorMessage = 'Failed to upload image';
+          
+          if (uploadError.toString().contains('SocketException')) {
+            errorMessage = 'Network connection failed. Please check your internet connection.';
+          } else if (uploadError.toString().contains('TimeoutException')) {
+            errorMessage = 'Upload timed out. Please try again.';
+          } else if (uploadError.toString().contains('FormatException')) {
+            errorMessage = 'Invalid image format. Please select a valid image file.';
+          } else if (uploadError.toString().contains('FileSystemException')) {
+            errorMessage = 'Image file not accessible. Please try selecting the image again.';
+          } else {
+            errorMessage = 'Upload failed: ${uploadError.toString()}';
+          }
+          
+          _showSnackBar(errorMessage);
+          setState(() {
+            _isLoading = false;
+          });
+          return;
         }
       } else if (_imageChanged && _newProfileImage == null) {
         // User removed profile image
         newProfileImageUrl = null;
+        _showSnackBar('Profile image removed', isSuccess: true);
       }
       
       // Update profile data

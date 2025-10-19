@@ -6,8 +6,15 @@ const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const roboflowService = require('../services/roboflowService');
 const mealDbRecipeService = require('../services/mealDbRecipeService');
+const ingredientDetectionService = require('../services/ingredientDetectionService');
+const recipeSuggestionService = require('../services/recipeSuggestionService');
+const recipeService = require('../services/recipeService');
 
 const router = express.Router();
+
+// In-memory session storage for progressive ingredient scanning
+// In production, consider using Redis or database
+const ingredientSessions = new Map();
 
 // @route   POST /api/scan/analyze
 // @desc    Analyze uploaded image for food/ingredients
@@ -766,5 +773,340 @@ router.post('/shopping-list', auth, [
     });
   }
 });
+
+// ========================================
+// PROGRESSIVE INGREDIENT SCANNING FEATURE
+// Scan ingredients one by one and build a list
+// ========================================
+
+// @route   POST /api/scan/ingredient/single
+// @desc    Scan a single ingredient and add to user's session
+// @access  Private
+router.post('/ingredient/single', auth, upload.memoryUpload.single('scanImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    console.log(`🥬 [Progressive Scan] User ${userId} scanning single ingredient...`);
+    
+    // Detect ingredient in the image using Roboflow
+    const detectedItems = await roboflowService.analyzeFood(req.file.buffer, 'ingredient');
+
+    if (detectedItems.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No ingredient detected. Try adjusting lighting or angle.',
+        detectedIngredient: null,
+        currentList: ingredientSessions.get(userId)?.ingredients || []
+      });
+    }
+
+    // Get the top detected ingredient
+    const detectedIngredient = detectedItems[0];
+    console.log(`✅ Detected: ${detectedIngredient.name} (${(detectedIngredient.confidence * 100).toFixed(0)}%)`);
+
+    // Initialize or get existing session for this user
+    if (!ingredientSessions.has(userId)) {
+      ingredientSessions.set(userId, {
+        ingredients: [],
+        createdAt: new Date(),
+        lastUpdated: new Date()
+      });
+    }
+
+    const session = ingredientSessions.get(userId);
+
+    // Check if ingredient already exists in the list (avoid duplicates)
+    const existingIndex = session.ingredients.findIndex(
+      item => item.name.toLowerCase() === detectedIngredient.name.toLowerCase()
+    );
+
+    if (existingIndex >= 0) {
+      // Update confidence if new scan has higher confidence
+      if (detectedIngredient.confidence > session.ingredients[existingIndex].confidence) {
+        session.ingredients[existingIndex] = detectedIngredient;
+      }
+      console.log(`⚠️ Ingredient already in list: ${detectedIngredient.name}`);
+    } else {
+      // Add new ingredient to the list
+      session.ingredients.push(detectedIngredient);
+      console.log(`➕ Added to list: ${detectedIngredient.name}`);
+    }
+
+    session.lastUpdated = new Date();
+
+    res.json({
+      success: true,
+      message: `Detected: ${detectedIngredient.name}`,
+      detectedIngredient: detectedIngredient,
+      wasAlreadyInList: existingIndex >= 0,
+      currentList: session.ingredients,
+      totalIngredients: session.ingredients.length
+    });
+
+  } catch (error) {
+    console.error('Single ingredient scan error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during ingredient scanning'
+    });
+  }
+});
+
+// @route   GET /api/scan/ingredient/session
+// @desc    Get current ingredient scanning session
+// @access  Private
+router.get('/ingredient/session', auth, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const session = ingredientSessions.get(userId);
+
+    if (!session || session.ingredients.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No active ingredient session',
+        ingredients: [],
+        totalIngredients: 0,
+        recipeSuggestions: []
+      });
+    }
+
+    // Get recipe suggestions for current ingredients
+    const suggestions = await recipeSuggestionService.suggestRecipesByIngredients(
+      session.ingredients
+    );
+
+    res.json({
+      success: true,
+      message: 'Session retrieved successfully',
+      ingredients: session.ingredients,
+      totalIngredients: session.ingredients.length,
+      recipeSuggestions: suggestions.suggestions || [],
+      totalRecipes: suggestions.totalFound || 0,
+      sessionAge: Math.round((new Date() - session.createdAt) / 1000) // seconds
+    });
+
+  } catch (error) {
+    console.error('Get ingredient session error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   POST /api/scan/ingredient/add-manual
+// @desc    Manually add an ingredient to the list (no scan)
+// @access  Private
+router.post('/ingredient/add-manual', auth, [
+  body('ingredientName')
+    .trim()
+    .notEmpty()
+    .withMessage('Ingredient name is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const { ingredientName } = req.body;
+
+    console.log(`✏️ [Progressive Scan] User ${userId} manually adding: ${ingredientName}`);
+
+    // Initialize or get existing session
+    if (!ingredientSessions.has(userId)) {
+      ingredientSessions.set(userId, {
+        ingredients: [],
+        createdAt: new Date(),
+        lastUpdated: new Date()
+      });
+    }
+
+    const session = ingredientSessions.get(userId);
+
+    // Check for duplicates
+    const existingIndex = session.ingredients.findIndex(
+      item => item.name.toLowerCase() === ingredientName.toLowerCase()
+    );
+
+    if (existingIndex >= 0) {
+      return res.json({
+        success: false,
+        message: `${ingredientName} is already in your list`,
+        currentList: session.ingredients,
+        totalIngredients: session.ingredients.length
+      });
+    }
+
+    // Add manually entered ingredient
+    const newIngredient = {
+      name: ingredientName.charAt(0).toUpperCase() + ingredientName.slice(1).toLowerCase(),
+      confidence: 1.0, // Manual entry = 100% confidence
+      category: 'manual',
+      manualEntry: true
+    };
+
+    session.ingredients.push(newIngredient);
+    session.lastUpdated = new Date();
+
+    console.log(`✅ Manually added: ${ingredientName}`);
+
+    res.json({
+      success: true,
+      message: `Added: ${newIngredient.name}`,
+      addedIngredient: newIngredient,
+      currentList: session.ingredients,
+      totalIngredients: session.ingredients.length
+    });
+
+  } catch (error) {
+    console.error('Manual add ingredient error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   DELETE /api/scan/ingredient/:name
+// @desc    Remove an ingredient from the session list
+// @access  Private
+router.delete('/ingredient/:name', auth, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { name } = req.params;
+
+    const session = ingredientSessions.get(userId);
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active ingredient session'
+      });
+    }
+
+    const beforeLength = session.ingredients.length;
+    session.ingredients = session.ingredients.filter(
+      item => item.name.toLowerCase() !== name.toLowerCase()
+    );
+
+    if (session.ingredients.length === beforeLength) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ingredient not found in list'
+      });
+    }
+
+    session.lastUpdated = new Date();
+
+    console.log(`🗑️ Removed ingredient: ${name}`);
+
+    res.json({
+      success: true,
+      message: `Removed: ${name}`,
+      currentList: session.ingredients,
+      totalIngredients: session.ingredients.length
+    });
+
+  } catch (error) {
+    console.error('Remove ingredient error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   POST /api/scan/ingredient/get-recipes
+// @desc    Get full recipe suggestions based on current ingredient list
+// @access  Private
+router.post('/ingredient/get-recipes', auth, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const session = ingredientSessions.get(userId);
+
+    if (!session || session.ingredients.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No ingredients in your list. Scan some ingredients first!',
+        ingredients: [],
+        recipeSuggestions: []
+      });
+    }
+
+    console.log(`🍳 Getting recipes for ${session.ingredients.length} ingredients`);
+
+    // Get comprehensive recipe suggestions
+    const suggestions = await recipeSuggestionService.suggestRecipesByIngredients(
+      session.ingredients
+    );
+
+    res.json({
+      success: true,
+      message: `Found ${suggestions.totalFound || 0} recipes matching your ingredients`,
+      ingredients: session.ingredients,
+      totalIngredients: session.ingredients.length,
+      recipeSuggestions: suggestions.suggestions || [],
+      totalRecipes: suggestions.totalFound || 0
+    });
+
+  } catch (error) {
+    console.error('Get recipes from session error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   DELETE /api/scan/ingredient/session
+// @desc    Clear the ingredient scanning session (start over)
+// @access  Private
+router.delete('/ingredient/session', auth, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    
+    if (ingredientSessions.has(userId)) {
+      ingredientSessions.delete(userId);
+      console.log(`🧹 Cleared ingredient session for user ${userId}`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Ingredient session cleared. Ready to start fresh!'
+    });
+
+  } catch (error) {
+    console.error('Clear session error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// Clean up old sessions periodically (30 minutes inactive)
+setInterval(() => {
+  const now = new Date();
+  const thirtyMinutes = 30 * 60 * 1000;
+  
+  for (const [userId, session] of ingredientSessions.entries()) {
+    if (now - session.lastUpdated > thirtyMinutes) {
+      ingredientSessions.delete(userId);
+      console.log(`🧹 Auto-cleaned inactive session for user ${userId}`);
+    }
+  }
+}, 10 * 60 * 1000); // Check every 10 minutes
 
 module.exports = router;

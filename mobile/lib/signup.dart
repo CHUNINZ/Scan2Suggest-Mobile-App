@@ -181,7 +181,7 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
 
     try {
       // Use email as name for now, or you can add a name field
-      final response = await ApiService.register(
+      await ApiService.register(
         name: email.split('@')[0], // Use email prefix as name
         email: email,
         password: password,
