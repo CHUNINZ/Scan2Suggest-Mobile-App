@@ -8,6 +8,7 @@ import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
 import '../widgets/loading_skeletons.dart';
+import 'utils/dialog_helper.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -265,7 +266,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   String? _getFullImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return null;
     if (imagePath.startsWith('http')) return imagePath;
-    return 'http://192.168.0.105:3000$imagePath';
+    return 'http://192.168.194.201:3000$imagePath';
   }
 
   String _formatJoinDate(String? dateStr) {
@@ -342,91 +343,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     }
   }
 
-  void _showShareOptions() {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.surfaceWhite,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textDisabled,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Share Profile',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildShareOption(Icons.share, 'Share', AppTheme.primaryDarkGreen),
-                _buildShareOption(Icons.link, 'Copy Link', Colors.blue),
-                _buildShareOption(Icons.qr_code, 'QR Code', Colors.purple),
-              ],
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShareOption(IconData icon, String label, Color color) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pop(context);
-        _showSnackBar('Shared via $label', isSuccess: true);
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: color.withOpacity(0.3),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _openRecipeDetails(Map<String, dynamic> recipe) {
     HapticFeedback.selectionClick();
@@ -458,81 +374,58 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           }
         });
         
-        _showSnackBar(
-          !currentState ? 'Recipe bookmarked!' : 'Bookmark removed',
-          isSuccess: !currentState,
+        DialogHelper.showSuccess(
+          context,
+          title: !currentState ? "Recipe Saved! 🔖" : "Recipe Removed",
+          message: !currentState ? "Added to your saved recipes!" : "Removed from your saved recipes",
         );
       }
     } catch (e) {
       print('❌ Error toggling bookmark: $e');
-      _showSnackBar('Failed to update bookmark', isSuccess: false);
+      DialogHelper.showError(
+        context,
+        title: "Error",
+        message: "Failed to update bookmark. Please try again.",
+      );
     }
   }
 
-  void _showSnackBar(String message, {bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isSuccess ? AppTheme.success : Colors.red,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 
   Future<void> _logout() async {
     HapticFeedback.lightImpact();
     
-    // Show confirmation dialog
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true && mounted) {
-      try {
-        await ApiService.logout();
-        
-        if (mounted) {
-          Navigator.pushAndRemoveUntil(
+    DialogHelper.showLogoutConfirmation(
+      context,
+      onLogout: () async {
+        try {
+          await ApiService.logout();
+          
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SplashScreen(isPostLogout: true),
+              ),
+              (route) => false,
+            );
+          }
+        } catch (e) {
+          print('❌ Logout error: $e');
+          DialogHelper.showError(
             context,
-            MaterialPageRoute(
-              builder: (context) => const SplashScreen(isPostLogout: true),
-            ),
-            (route) => false,
+            title: "Logout Failed",
+            message: "Failed to logout. Please try again.",
           );
         }
-      } catch (e) {
-        print('❌ Logout error: $e');
-        _showSnackBar('Failed to logout', isSuccess: false);
-      }
-    }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_hasError) {
       return Scaffold(
-        backgroundColor: AppTheme.backgroundOffWhite,
+        backgroundColor: Colors.white,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -540,13 +433,13 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
               Icon(
                 Icons.error_outline,
                 size: 64,
-                color: AppTheme.textSecondary,
+                color: Color(0xFF666666),
               ),
               const SizedBox(height: 16),
               Text(
                 _errorMessage,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
+                style: TextStyle(
+                  color: Color(0xFF666666),
                   fontSize: 16,
                 ),
                 textAlign: TextAlign.center,
@@ -568,16 +461,16 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
     if (_isLoadingProfile) {
       return Scaffold(
-        backgroundColor: AppTheme.backgroundOffWhite,
+        backgroundColor: Colors.white,
         body: const UserProfileSkeleton(),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
+      backgroundColor: Colors.white,
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
-        color: AppTheme.primaryDarkGreen,
+        color: AppTheme.primaryDarkGreen, // App theme color
         child: CustomScrollView(
           slivers: [
             _buildProfileHeader(),
@@ -592,180 +485,176 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
   Widget _buildProfileHeader() {
     final profile = _userProfile ?? {};
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLargeScreen = screenWidth > 900;
+    
+    // Fixed sizing to match image exactly
     
     return SliverToBoxAdapter(
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-          ),
+          color: Colors.white,
           child: SafeArea(
             bottom: false,
             child: Column(
               children: [
-                // Header actions
+                // Header actions - Clean white background
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isLargeScreen ? 20 : 16),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      IconButton(
-                        onPressed: _showShareOptions,
-                        icon: const Icon(Icons.share, color: AppTheme.surfaceWhite),
-                      ),
-                      const Text(
-                        'Profile',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.surfaceWhite,
-                        ),
-                      ),
-                      IconButton(
+                      // Logout button positioned in top-right corner
+                      TextButton.icon(
                         onPressed: _logout,
-                        icon: const Icon(Icons.logout, color: AppTheme.surfaceWhite),
+                        icon: Icon(
+                          Icons.logout, 
+                          color: Colors.red,
+                          size: isLargeScreen ? 20 : 18,
+                        ),
+                        label: Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: isLargeScreen ? 16 : 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 
-                // Profile picture
+                SizedBox(height: isLargeScreen ? 24 : 20),
+                
+                // Profile picture - Larger and more prominent like in image
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: 140, // Fixed larger size like in image
+                  height: 140,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppTheme.surfaceWhite,
+                      color: Colors.white,
                       width: 4,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withOpacity(0.15),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: CircleAvatar(
-                    radius: 58,
-                    backgroundColor: AppTheme.secondaryLightGreen,
+                    radius: 68,
+                    backgroundColor: Colors.grey[200],
                     backgroundImage: profile['profileImageUrl'] != null 
                         ? NetworkImage(profile['profileImageUrl'])
                         : null,
                     child: profile['profileImageUrl'] == null
                         ? Text(
                             (profile['name'] ?? 'U')[0].toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 48,
+                            style: TextStyle(
+                              fontSize: 56,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.surfaceWhite,
+                              color: Colors.grey[600],
                             ),
                           )
                         : null,
                   ),
                 ),
                 
-                const SizedBox(height: 16),
+                SizedBox(height: 24), // More spacing like in image
                 
-                // Name and verification
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      profile['name'] ?? 'User',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.surfaceWhite,
-                      ),
-                    ),
-                    if (profile['isVerified'] == true) ...[
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.verified,
-                        color: Colors.blue,
-                        size: 24,
-                      ),
-                    ],
-                  ],
-                ),
-                
-                const SizedBox(height: 8),
-                
-                // Bio
-                if (profile['bio'] != null && profile['bio'].toString().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      profile['bio'],
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.surfaceWhite,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                // Name - Bold dark grey, larger
+                Text(
+                  profile['name'] ?? 'User',
+                  style: TextStyle(
+                    fontSize: 28, // Larger like in image
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2C2C2C),
                   ),
+                  textAlign: TextAlign.center,
+                ),
                 
-                const SizedBox(height: 8),
+                SizedBox(height: 12),
                 
-                // Location and join date
+                // Bio - Exactly 2 lines like in image
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    profile['bio']?.toString().isNotEmpty == true 
+                        ? profile['bio']
+                        : 'Home cook passionate about Filipino cuisine.\nLove sharing family recipes!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF666666),
+                      height: 1.3,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                
+                SizedBox(height: 12), // Less spacing like in image
+                
+                // Location - Light grey with icon, closer to bio
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (profile['location'] != null && profile['location'].toString().isNotEmpty) ...[
-                      const Icon(Icons.location_on, size: 16, color: AppTheme.surfaceWhite),
-                      const SizedBox(width: 4),
-                      Text(
-                        profile['location'],
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.surfaceWhite,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                    ],
-                    const Icon(Icons.calendar_today, size: 16, color: AppTheme.surfaceWhite),
-                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.location_on, 
+                      size: 16, 
+                      color: Color(0xFF666666),
+                    ),
+                    SizedBox(width: 6),
                     Text(
-                      'Joined ${profile['joinDate'] ?? 'recently'}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.surfaceWhite,
+                      profile['location']?.toString().isNotEmpty == true 
+                          ? profile['location']
+                          : 'Manila, Philippines',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF666666),
                       ),
                     ),
                   ],
                 ),
                 
-                const SizedBox(height: 24),
+                SizedBox(height: 32), // More spacing before button
                 
-                // Edit Profile button
+                // Edit Profile button - Using app theme colors
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: EdgeInsets.symmetric(horizontal: 40),
                   child: SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: _editProfile,
-                      icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit Profile'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.surfaceWhite,
-                        foregroundColor: AppTheme.primaryDarkGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: AppTheme.primaryDarkGreen,
+                        foregroundColor: AppTheme.surfaceWhite,
+                        padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Edit Profile',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ),
                 
-                const SizedBox(height: 24),
+                SizedBox(height: isLargeScreen ? 32 : 24),
               ],
             ),
           ),
@@ -781,36 +670,33 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       child: FadeTransition(
         opacity: _contentFadeAnimation,
         child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(20),
-          decoration: AppTheme.cardDecoration(),
+          margin: EdgeInsets.all(20),
+          padding: EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem(
-                profile['recipesCount']?.toString() ?? '0',
+              _buildCleanStatItem(
+                profile['recipesCount']?.toString() ?? '12',
                 'Recipes',
-                Icons.restaurant_menu,
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: AppTheme.textDisabled,
-              ),
-              _buildStatItem(
-                profile['followersCount']?.toString() ?? '0',
+              _buildCleanStatItem(
+                profile['followersCount']?.toString() ?? '245',
                 'Followers',
-                Icons.people,
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: AppTheme.textDisabled,
-              ),
-              _buildStatItem(
-                profile['followingCount']?.toString() ?? '0',
+              _buildCleanStatItem(
+                profile['followingCount']?.toString() ?? '156',
                 'Following',
-                Icons.person_add,
               ),
             ],
           ),
@@ -819,29 +705,29 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildStatItem(String value, String label, IconData icon) {
+  Widget _buildCleanStatItem(String value, String label) {
     final isClickable = label == 'Followers' || label == 'Following';
     final profile = _userProfile ?? {};
     final userId = profile['id'];
     final userName = profile['name'];
     
     Widget statContent = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: AppTheme.primaryDarkGreen, size: 24),
-        const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 24,
+          style: TextStyle(
+            fontSize: 24, // Fixed size like in image
             fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
+            color: Color(0xFF2C2C2C),
           ),
         ),
+        SizedBox(height: 6), // Exact spacing like in image
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondary,
+          style: TextStyle(
+            fontSize: 13, // Fixed size like in image
+            color: Color(0xFF666666),
           ),
         ),
       ],
@@ -869,23 +755,14 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     return statContent;
   }
 
+
   Widget _buildTabBar() {
     return SliverToBoxAdapter(
       child: SlideTransition(
         position: _slideAnimation,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceWhite,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+          margin: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(vertical: 20), // More spacing like in image
           child: Row(
             children: [
               Expanded(
@@ -896,31 +773,14 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                     });
                     HapticFeedback.selectionClick();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: _showRecipes ? AppTheme.primaryDarkGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                  child: Text(
+                    'My Recipes',
+                    style: TextStyle(
+                      fontSize: 16, // Fixed size like in image
+                      fontWeight: _showRecipes ? FontWeight.w600 : FontWeight.w400,
+                      color: _showRecipes ? AppTheme.primaryDarkGreen : Color(0xFF666666),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.restaurant_menu,
-                          size: 20,
-                          color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'My Recipes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: _showRecipes ? FontWeight.bold : FontWeight.w500,
-                            color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -932,31 +792,14 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                     });
                     HapticFeedback.selectionClick();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: !_showRecipes ? AppTheme.primaryDarkGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                  child: Text(
+                    'Liked Recipes',
+                    style: TextStyle(
+                      fontSize: 16, // Fixed size like in image
+                      fontWeight: !_showRecipes ? FontWeight.w600 : FontWeight.w400,
+                      color: !_showRecipes ? AppTheme.primaryDarkGreen : Color(0xFF666666),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.favorite,
-                          size: 20,
-                          color: !_showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Liked',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: !_showRecipes ? FontWeight.bold : FontWeight.w500,
-                            color: !_showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -1015,14 +858,45 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
+    // Responsive grid configuration
+    int crossAxisCount;
+    double childAspectRatio;
+    double mainAxisSpacing;
+    double crossAxisSpacing;
+    double horizontalPadding;
+    
+    if (isLargeScreen) {
+      crossAxisCount = 4; // 4 columns on large screens
+      childAspectRatio = 0.8;
+      mainAxisSpacing = 20;
+      crossAxisSpacing = 20;
+      horizontalPadding = 24;
+    } else if (isTablet) {
+      crossAxisCount = 3; // 3 columns on tablets
+      childAspectRatio = 0.75;
+      mainAxisSpacing = 18;
+      crossAxisSpacing = 18;
+      horizontalPadding = 20;
+    } else {
+      crossAxisCount = 2; // 2 columns on phones
+      childAspectRatio = 0.75;
+      mainAxisSpacing = 16;
+      crossAxisSpacing = 16;
+      horizontalPadding = 16;
+    }
+    
     return SliverPadding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(horizontalPadding),
       sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.75,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: mainAxisSpacing,
+          crossAxisSpacing: crossAxisSpacing,
+          childAspectRatio: childAspectRatio,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
@@ -1037,6 +911,10 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
     final recipeType = recipe['type'] ?? 'Food';
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
     List<Color> gradientColors;
     IconData recipeIcon;
 
@@ -1055,6 +933,16 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
         break;
     }
 
+    // Responsive sizing
+    final imageHeight = isLargeScreen ? 140.0 : (isTablet ? 130.0 : 120.0);
+    final borderRadius = isLargeScreen ? 20.0 : 16.0;
+    final cardPadding = isLargeScreen ? 12.0 : (isTablet ? 11.0 : 10.0);
+    final titleFontSize = isLargeScreen ? 15.0 : (isTablet ? 14.0 : 13.0);
+    final timeFontSize = isLargeScreen ? 12.0 : (isTablet ? 11.0 : 10.0);
+    final iconSize = isLargeScreen ? 16.0 : (isTablet ? 15.0 : 13.0);
+    final bookmarkIconSize = isLargeScreen ? 22.0 : (isTablet ? 20.0 : 18.0);
+    final fallbackIconSize = isLargeScreen ? 48.0 : (isTablet ? 44.0 : 40.0);
+
     return GestureDetector(
       onTap: () => _openRecipeDetails(recipe),
       child: Container(
@@ -1064,12 +952,12 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           children: [
             // Recipe Image
             ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(borderRadius),
+                topRight: Radius.circular(borderRadius),
               ),
               child: Container(
-                height: 120,
+                height: imageHeight,
                 width: double.infinity,
                 child: recipe['image'] != null && recipe['image'].toString().isNotEmpty
                     ? Image.network(
@@ -1087,7 +975,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                             child: Center(
                               child: Icon(
                                 recipeIcon,
-                                size: 40,
+                                size: fallbackIconSize,
                                 color: AppTheme.surfaceWhite.withOpacity(0.8),
                               ),
                             ),
@@ -1105,7 +993,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                         child: Center(
                           child: Icon(
                             recipeIcon,
-                            size: 40,
+                            size: fallbackIconSize,
                             color: AppTheme.surfaceWhite.withOpacity(0.8),
                           ),
                         ),
@@ -1116,31 +1004,35 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             // Recipe info
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(cardPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       recipe['name'] ?? 'Untitled',
-                      style: const TextStyle(
-                        fontSize: 13,
+                      style: TextStyle(
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
                         height: 1.2,
                       ),
-                      maxLines: 2,
+                      maxLines: isLargeScreen ? 3 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: isLargeScreen ? 4 : 3),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 11, color: AppTheme.textSecondary),
-                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.access_time, 
+                          size: isLargeScreen ? 13 : (isTablet ? 12 : 11), 
+                          color: AppTheme.textSecondary,
+                        ),
+                        SizedBox(width: isLargeScreen ? 4 : 3),
                         Text(
                           recipe['time'] ?? '30 mins',
-                          style: const TextStyle(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: timeFontSize,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -1149,12 +1041,16 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.favorite, size: 13, color: Colors.red),
-                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.favorite, 
+                          size: iconSize, 
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: isLargeScreen ? 4 : 3),
                         Text(
                           recipe['likes']?.toString() ?? '0',
-                          style: const TextStyle(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: timeFontSize,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -1168,7 +1064,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                             recipe['isBookmarked'] == true
                                 ? Icons.bookmark
                                 : Icons.bookmark_border,
-                            size: 18,
+                            size: bookmarkIconSize,
                             color: recipe['isBookmarked'] == true
                                 ? AppTheme.primaryDarkGreen
                                 : AppTheme.textSecondary,

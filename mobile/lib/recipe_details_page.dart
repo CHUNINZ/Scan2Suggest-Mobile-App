@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'config/api_config.dart';
 import 'services/api_service.dart';
-import '../widgets/loading_skeletons.dart';
+import 'utils/dialog_helper.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -91,12 +91,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingLike = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isLiked ? '❤️ Added to liked recipes!' : 'Removed from liked recipes'),
-            backgroundColor: _isLiked ? Colors.red : Colors.grey[700],
-            duration: const Duration(seconds: 2),
-          ),
+        DialogHelper.showSuccess(
+          context,
+          title: _isLiked ? "Recipe Liked! ❤️" : "Recipe Unliked",
+          message: _isLiked ? "Added to your liked recipes!" : "Removed from your liked recipes",
         );
       } else {
         throw Exception(response['message'] ?? 'Failed to like recipe');
@@ -107,12 +105,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingLike = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
         );
       }
     }
@@ -141,12 +137,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingBookmark = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isBookmarked ? '🔖 Recipe saved!' : 'Recipe removed from saved'),
-            backgroundColor: _isBookmarked ? Colors.green : Colors.grey[700],
-            duration: const Duration(seconds: 2),
-          ),
+        DialogHelper.showSuccess(
+          context,
+          title: _isBookmarked ? "Recipe Saved! 🔖" : "Recipe Removed",
+          message: _isBookmarked ? "Added to your saved recipes!" : "Removed from your saved recipes",
         );
       } else {
         throw Exception(response['message'] ?? 'Failed to bookmark recipe');
@@ -157,12 +151,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingBookmark = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
         );
       }
     }
@@ -277,24 +269,20 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         );
         
         if (response['success'] == true && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⭐ Thank you for your rating!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
+          DialogHelper.showSuccess(
+            context,
+            title: "Thank You! ⭐",
+            message: "Your rating has been submitted successfully!",
           );
         } else {
           throw Exception(response['message'] ?? 'Failed to rate recipe');
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
+          DialogHelper.showError(
+            context,
+            title: "Error",
+            message: e.toString().replaceAll('Exception: ', ''),
           );
         }
       }

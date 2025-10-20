@@ -336,13 +336,30 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   Widget _buildHeader() {
     final profileImageUrl = _getFullImageUrl(_userProfile?['profileImage']);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
+    // Responsive sizing
+    final expandedHeight = isLargeScreen ? 280.0 : (isTablet ? 250.0 : 220.0);
+    final profileImageRadius = isLargeScreen ? 60.0 : (isTablet ? 55.0 : 50.0);
+    final profileImageBorderWidth = isLargeScreen ? 5.0 : 4.0;
+    final nameFontSize = isLargeScreen ? 28.0 : (isTablet ? 26.0 : 24.0);
+    final buttonHeight = isLargeScreen ? 70.0 : 60.0;
+    final buttonPadding = isLargeScreen ? 18.0 : (isTablet ? 16.0 : 14.0);
+    final buttonFontSize = isLargeScreen ? 18.0 : (isTablet ? 17.0 : 16.0);
+    final iconSize = isLargeScreen ? 24.0 : (isTablet ? 22.0 : 20.0);
     
     return SliverAppBar(
-      expandedHeight: 220,
+      expandedHeight: expandedHeight,
       pinned: true,
       backgroundColor: AppTheme.surfaceWhite,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
+        icon: Icon(
+          Icons.arrow_back, 
+          color: AppTheme.textPrimary,
+          size: isLargeScreen ? 28 : 24,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       flexibleSpace: FlexibleSpaceBar(
@@ -352,22 +369,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
+                SizedBox(height: isLargeScreen ? 50 : (isTablet ? 45 : 40)),
                 // Profile picture
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.surfaceWhite, width: 4),
+                    border: Border.all(
+                      color: AppTheme.surfaceWhite, 
+                      width: profileImageBorderWidth,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: AppTheme.textPrimary.withOpacity(0.2),
-                        blurRadius: 12,
+                        blurRadius: isLargeScreen ? 16 : 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: CircleAvatar(
-                    radius: 50,
+                    radius: profileImageRadius,
                     backgroundColor: AppTheme.surfaceWhite,
                     backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl) : null,
                     child: profileImageUrl == null
@@ -375,8 +395,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             _userProfile?['name']?.toString().isNotEmpty == true
                                 ? _userProfile!['name'][0].toUpperCase()
                                 : 'U',
-                            style: const TextStyle(
-                              fontSize: 36,
+                            style: TextStyle(
+                              fontSize: isLargeScreen ? 42 : (isTablet ? 39 : 36),
                               fontWeight: FontWeight.bold,
                               color: AppTheme.primaryDarkGreen,
                             ),
@@ -384,17 +404,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         : null,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: isLargeScreen ? 16 : 12),
                 // Name
                 Text(
                   _userProfile?['name'] ?? 'User',
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: TextStyle(
+                    fontSize: nameFontSize,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.surfaceWhite,
                   ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isLargeScreen ? 12 : 8),
                 // Stats row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -404,20 +426,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       'Recipes',
                     ),
                     Container(
-                      height: 24,
+                      height: isLargeScreen ? 30 : (isTablet ? 27 : 24),
                       width: 1,
                       color: AppTheme.surfaceWhite.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      margin: EdgeInsets.symmetric(horizontal: isLargeScreen ? 24 : (isTablet ? 22 : 20)),
                     ),
                     _buildStatItem(
                       (_userProfile?['followersCount'] ?? 0).toString(),
                       'Followers',
                     ),
                     Container(
-                      height: 24,
+                      height: isLargeScreen ? 30 : (isTablet ? 27 : 24),
                       width: 1,
                       color: AppTheme.surfaceWhite.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      margin: EdgeInsets.symmetric(horizontal: isLargeScreen ? 24 : (isTablet ? 22 : 20)),
                     ),
                     _buildStatItem(
                       (_userProfile?['followingCount'] ?? 0).toString(),
@@ -431,25 +453,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
         ),
       ),
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
+        preferredSize: Size.fromHeight(buttonHeight),
         child: Container(
           color: AppTheme.surfaceWhite,
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(isLargeScreen ? 16 : 12),
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoadingFollow ? null : _toggleFollow,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isFollowing ? Colors.grey[300] : AppTheme.primaryDarkGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: buttonPadding),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
                 ),
               ),
               child: _isLoadingFollow
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
+                  ? SizedBox(
+                      height: isLargeScreen ? 24 : 20,
+                      width: isLargeScreen ? 24 : 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Colors.white,
@@ -461,15 +483,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         Icon(
                           _isFollowing ? Icons.check : Icons.person_add,
                           color: _isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
-                          size: 20,
+                          size: iconSize,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: isLargeScreen ? 12 : (isTablet ? 10 : 8)),
                         Text(
                           _isFollowing ? 'Following' : 'Follow',
                           style: TextStyle(
                             color: _isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: buttonFontSize,
                           ),
                         ),
                       ],
@@ -483,23 +505,31 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   Widget _buildStatItem(String value, String label) {
     final isClickable = label == 'Followers' || label == 'Following';
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
+    // Responsive sizing
+    final valueFontSize = isLargeScreen ? 26.0 : (isTablet ? 24.0 : 22.0);
+    final labelFontSize = isLargeScreen ? 15.0 : (isTablet ? 14.0 : 13.0);
+    final spacing = isLargeScreen ? 4.0 : 2.0;
     
     Widget statContent = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 22,
+          style: TextStyle(
+            fontSize: valueFontSize,
             fontWeight: FontWeight.bold,
             color: AppTheme.surfaceWhite,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: spacing),
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: labelFontSize,
             color: AppTheme.surfaceWhite.withOpacity(0.9),
           ),
         ),
@@ -529,12 +559,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Widget _buildTabBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
     return SliverToBoxAdapter(
       child: Container(
-        margin: const EdgeInsets.all(16),
+        margin: EdgeInsets.all(isLargeScreen ? 24 : (isTablet ? 20 : 16)),
         decoration: AppTheme.cardDecoration(),
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: EdgeInsets.all(isLargeScreen ? 8 : 6),
           child: Row(
             children: [
               Expanded(
@@ -546,24 +580,24 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     HapticFeedback.selectionClick();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: isLargeScreen ? 20 : (isTablet ? 18 : 16)),
                     decoration: BoxDecoration(
                       color: _showRecipes ? AppTheme.primaryDarkGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(isLargeScreen ? 16 : 12),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.restaurant_menu,
-                          size: 20,
+                          size: isLargeScreen ? 24 : (isTablet ? 22 : 20),
                           color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: isLargeScreen ? 12 : (isTablet ? 10 : 8)),
                         Text(
                           'Recipes',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: isLargeScreen ? 18 : (isTablet ? 17 : 16),
                             fontWeight: _showRecipes ? FontWeight.bold : FontWeight.w500,
                             color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
                           ),
@@ -623,14 +657,45 @@ class _UserProfilePageState extends State<UserProfilePage> {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+    
+    // Responsive grid configuration
+    int crossAxisCount;
+    double childAspectRatio;
+    double mainAxisSpacing;
+    double crossAxisSpacing;
+    double horizontalPadding;
+    
+    if (isLargeScreen) {
+      crossAxisCount = 4; // 4 columns on large screens
+      childAspectRatio = 0.8;
+      mainAxisSpacing = 20;
+      crossAxisSpacing = 20;
+      horizontalPadding = 24;
+    } else if (isTablet) {
+      crossAxisCount = 3; // 3 columns on tablets
+      childAspectRatio = 0.75;
+      mainAxisSpacing = 18;
+      crossAxisSpacing = 18;
+      horizontalPadding = 20;
+    } else {
+      crossAxisCount = 2; // 2 columns on phones
+      childAspectRatio = 0.75;
+      mainAxisSpacing = 12;
+      crossAxisSpacing = 12;
+      horizontalPadding = 16;
+    }
+    
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: childAspectRatio,
+          crossAxisSpacing: crossAxisSpacing,
+          mainAxisSpacing: mainAxisSpacing,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
@@ -646,6 +711,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final gradientColors = _getGradientColors(recipe['type'] ?? 'Food');
     final recipeIcon = _getRecipeIcon(recipe['type'] ?? 'Food');
     final imageUrl = _getFullImageUrl(recipe['image']);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final isLargeScreen = screenWidth > 900;
+
+    // Responsive sizing
+    final imageHeight = isLargeScreen ? 140.0 : (isTablet ? 130.0 : 120.0);
+    final borderRadius = isLargeScreen ? 20.0 : 16.0;
+    final cardPadding = isLargeScreen ? 12.0 : (isTablet ? 11.0 : 10.0);
+    final titleFontSize = isLargeScreen ? 15.0 : (isTablet ? 14.0 : 13.0);
+    final timeFontSize = isLargeScreen ? 12.0 : (isTablet ? 11.0 : 10.0);
+    final iconSize = isLargeScreen ? 16.0 : (isTablet ? 15.0 : 13.0);
+    final bookmarkIconSize = isLargeScreen ? 22.0 : (isTablet ? 20.0 : 18.0);
+    final fallbackIconSize = isLargeScreen ? 48.0 : (isTablet ? 44.0 : 40.0);
 
     return GestureDetector(
       onTap: () {
@@ -665,12 +743,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
           children: [
             // Recipe image
             ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(borderRadius),
+                topRight: Radius.circular(borderRadius),
               ),
               child: Container(
-                height: 120,
+                height: imageHeight,
                 width: double.infinity,
                 child: imageUrl != null
                     ? Image.network(
@@ -688,7 +766,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             child: Center(
                               child: Icon(
                                 recipeIcon,
-                                size: 40,
+                                size: fallbackIconSize,
                                 color: AppTheme.surfaceWhite.withOpacity(0.8),
                               ),
                             ),
@@ -706,7 +784,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         child: Center(
                           child: Icon(
                             recipeIcon,
-                            size: 40,
+                            size: fallbackIconSize,
                             color: AppTheme.surfaceWhite.withOpacity(0.8),
                           ),
                         ),
@@ -717,31 +795,35 @@ class _UserProfilePageState extends State<UserProfilePage> {
             // Recipe info
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(cardPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       recipe['name'] ?? 'Untitled',
-                      style: const TextStyle(
-                        fontSize: 13,
+                      style: TextStyle(
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
                         height: 1.2,
                       ),
-                      maxLines: 2,
+                      maxLines: isLargeScreen ? 3 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: isLargeScreen ? 4 : 3),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 11, color: AppTheme.textSecondary),
-                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.access_time, 
+                          size: isLargeScreen ? 13 : (isTablet ? 12 : 11), 
+                          color: AppTheme.textSecondary,
+                        ),
+                        SizedBox(width: isLargeScreen ? 4 : 3),
                         Text(
                           recipe['time'] ?? '30 mins',
-                          style: const TextStyle(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: timeFontSize,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -750,12 +832,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.favorite, size: 13, color: Colors.red),
-                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.favorite, 
+                          size: iconSize, 
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: isLargeScreen ? 4 : 3),
                         Text(
                           recipe['likes']?.toString() ?? '0',
-                          style: const TextStyle(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: timeFontSize,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -767,7 +853,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           ),
                           child: Icon(
                             recipe['isBookmarked'] == true ? Icons.bookmark : Icons.bookmark_border,
-                            size: 18,
+                            size: bookmarkIconSize,
                             color: recipe['isBookmarked'] == true
                                 ? AppTheme.primaryDarkGreen
                                 : AppTheme.textSecondary,

@@ -91,7 +91,7 @@ class _ScanResultsPageState extends State<ScanResultsPage>
     }
   }
 
-  void _generateFoodResults() {
+  void _generateFoodResults() async {
     if (widget.detectedItems.isEmpty) {
       setState(() {
         _isLoading = false;
@@ -113,105 +113,26 @@ class _ScanResultsPageState extends State<ScanResultsPage>
       return;
     }
     
-    final String detectedFood = widget.detectedItems.first;
-    
-    // Enhanced ingredient mappings for different Filipino dishes
-    final Map<String, List<Map<String, String>>> foodIngredients = {
-      'Chicken Adobo': [
-        {'name': 'Chicken pieces (thighs/drumsticks)', 'amount': '1 kg'},
-        {'name': 'Soy sauce', 'amount': '1/2 cup'},
-        {'name': 'White vinegar', 'amount': '1/4 cup'},
-        {'name': 'Garlic cloves', 'amount': '6-8 pieces'},
-        {'name': 'Bay leaves', 'amount': '3 pieces'},
-        {'name': 'Black peppercorns', 'amount': '1 tsp'},
-        {'name': 'Onion (medium)', 'amount': '1 piece'},
-        {'name': 'Brown sugar (optional)', 'amount': '1 tbsp'},
-      ],
-      'Sinigang na Baboy': [
-        {'name': 'Pork ribs or belly', 'amount': '1 kg'},
-        {'name': 'Tamarind paste or mix', 'amount': '2-3 tbsp'},
-        {'name': 'Tomatoes (medium)', 'amount': '2-3 pieces'},
-        {'name': 'Onion (large)', 'amount': '1 piece'},
-        {'name': 'Kangkong (water spinach)', 'amount': '1 bunch'},
-        {'name': 'Radish (labanos)', 'amount': '1 piece'},
-        {'name': 'Green chili (siling haba)', 'amount': '2-3 pieces'},
-        {'name': 'Eggplant (long)', 'amount': '1 piece'},
-        {'name': 'Fish sauce (patis)', 'amount': '2 tbsp'},
-      ],
-      'Kare-Kare': [
-        {'name': 'Oxtail (cut into pieces)', 'amount': '1.5 kg'},
-        {'name': 'Peanut butter (smooth)', 'amount': '1 cup'},
-        {'name': 'Ground rice or rice flour', 'amount': '1/4 cup'},
-        {'name': 'Eggplant (sliced)', 'amount': '2 pieces'},
-        {'name': 'String beans (sitaw)', 'amount': '1 bundle'},
-        {'name': 'Banana heart (puso ng saging)', 'amount': '1 piece'},
-        {'name': 'Shrimp paste (bagoong)', 'amount': '3-4 tbsp'},
-        {'name': 'Annatto seeds or powder', 'amount': '2 tbsp'},
-      ],
-    };
-
-    _commonIngredients = (foodIngredients[detectedFood] ?? [
-      {'name': 'Main ingredient', 'amount': '1 kg'},
-      {'name': 'Secondary ingredient', 'amount': '2 tbsp'},
-      {'name': 'Seasoning', 'amount': '1 tsp'},
-    ]).map((ingredient) => {
-      'name': ingredient['name']!,
-      'amount': ingredient['amount']!,
-      'available': false,
-      'essential': true,
-    }).toList();
-
-    // Enhanced recipe suggestions
-    _suggestedRecipes = [
-      {
-        'name': 'Traditional $detectedFood',
-        'creator': 'Lola\'s Kitchen',
-        'type': 'Food',
-        'time': '90 mins',
-        'difficulty': 'Medium',
-        'rating': 4.9,
-        'description': 'The authentic recipe passed down through generations with traditional cooking methods.',
-        'serves': 6,
-        'prepTime': 20,
-        'cookTime': 70,
-        'ingredients': foodIngredients[detectedFood]?.length ?? 8,
-        'category': 'Traditional',
-        'spiceLevel': 'Mild',
-      },
-      {
-        'name': 'Quick $detectedFood',
-        'creator': 'Modern Filipino Kitchen',
-        'type': 'Food',
-        'time': '45 mins',
-        'difficulty': 'Easy',
-        'rating': 4.6,
-        'description': 'A time-saving version perfect for busy weekdays without compromising on taste.',
-        'serves': 4,
-        'prepTime': 15,
-        'cookTime': 30,
-        'ingredients': (foodIngredients[detectedFood]?.length ?? 8) - 2,
-        'category': 'Quick & Easy',
-        'spiceLevel': 'Mild',
-      },
-      {
-        'name': 'Healthy $detectedFood',
-        'creator': 'Wellness Chef',
-        'type': 'Food',
-        'time': '75 mins',
-        'difficulty': 'Medium',
-        'rating': 4.7,
-        'description': 'A nutritious version with reduced sodium and added vegetables for health-conscious families.',
-        'serves': 4,
-        'prepTime': 25,
-        'cookTime': 50,
-        'ingredients': (foodIngredients[detectedFood]?.length ?? 8) + 3,
-        'category': 'Healthy',
-        'spiceLevel': 'Mild',
-      },
-    ];
+    try {
+      // Call API to get ingredients and recipes for detected food
+      // This will be implemented when the backend API is ready
+      // final String detectedFood = widget.detectedItems.first;
+      setState(() {
+        _isLoading = false;
+        _commonIngredients = [];
+        _suggestedRecipes = [];
+      });
+    } catch (e) {
+      print('Error loading food results: $e');
+      setState(() {
+        _isLoading = false;
+        _commonIngredients = [];
+        _suggestedRecipes = [];
+      });
+    }
   }
 
-  void _generateIngredientResults() {
+  void _generateIngredientResults() async {
     if (widget.detectedItems.isEmpty) {
       setState(() {
         _isLoading = false;
@@ -220,120 +141,22 @@ class _ScanResultsPageState extends State<ScanResultsPage>
       return;
     }
     
-    _suggestedRecipes = _getRecipesForIngredients(widget.detectedItems);
-  }
-
-  List<Map<String, dynamic>> _getRecipesForIngredients(List<String> ingredients) {
-    final List<Map<String, dynamic>> allRecipes = [
-      {
-        'name': 'Chicken Adobo',
-        'creator': 'Filipino Chef',
-        'type': 'Food',
-        'time': '60 mins',
-        'difficulty': 'Medium',
-        'rating': 4.8,
-        'description': 'Classic Filipino braised chicken in soy sauce and vinegar.',
-        'serves': 4,
-        'ingredients': ['Chicken', 'Soy Sauce', 'Vinegar', 'Garlic'],
-        'matchedIngredients': 0,
-        'prepTime': 15,
-        'cookTime': 45,
-        'category': 'Main Course',
-        'spiceLevel': 'Mild',
-      },
-      {
-        'name': 'Chicken Tinola',
-        'creator': 'Home Cook',
-        'type': 'Food',
-        'time': '45 mins',
-        'difficulty': 'Easy',
-        'rating': 4.6,
-        'description': 'Comforting chicken soup with ginger and vegetables.',
-        'serves': 4,
-        'ingredients': ['Chicken', 'Ginger', 'Onion', 'Green Papaya'],
-        'matchedIngredients': 0,
-        'prepTime': 10,
-        'cookTime': 35,
-        'category': 'Soup',
-        'spiceLevel': 'Mild',
-      },
-      {
-        'name': 'Vegetable Lumpia',
-        'creator': 'Veggie Master',
-        'type': 'Food',
-        'time': '40 mins',
-        'difficulty': 'Medium',
-        'rating': 4.4,
-        'description': 'Fresh spring rolls with mixed vegetables.',
-        'serves': 6,
-        'ingredients': ['Bell Pepper', 'Carrots', 'Cabbage', 'Lettuce'],
-        'matchedIngredients': 0,
-        'prepTime': 30,
-        'cookTime': 10,
-        'category': 'Appetizer',
-        'spiceLevel': 'None',
-      },
-      {
-        'name': 'Ginataang Gulay',
-        'creator': 'Traditional Cook',
-        'type': 'Food',
-        'time': '25 mins',
-        'difficulty': 'Easy',
-        'rating': 4.7,
-        'description': 'Mixed vegetables cooked in coconut milk.',
-        'serves': 4,
-        'ingredients': ['Coconut Milk', 'Squash', 'String Beans', 'Eggplant'],
-        'matchedIngredients': 0,
-        'prepTime': 10,
-        'cookTime': 15,
-        'category': 'Vegetable',
-        'spiceLevel': 'Mild',
-      },
-      {
-        'name': 'Pancit Guisado',
-        'creator': 'Noodle Expert',
-        'type': 'Food',
-        'time': '30 mins',
-        'difficulty': 'Easy',
-        'rating': 4.5,
-        'description': 'Stir-fried noodles with vegetables and meat.',
-        'serves': 6,
-        'ingredients': ['Noodles', 'Cabbage', 'Carrots', 'Pork'],
-        'matchedIngredients': 0,
-        'prepTime': 15,
-        'cookTime': 15,
-        'category': 'Noodles',
-        'spiceLevel': 'Mild',
-      },
-    ];
-
-    // Calculate matched ingredients and sort by relevance
-    for (var recipe in allRecipes) {
-      final recipeIngredients = recipe['ingredients'] as List<String>;
-      int matchCount = 0;
-      
-      for (String ingredient in ingredients) {
-        for (String recipeIngredient in recipeIngredients) {
-          if (recipeIngredient.toLowerCase().contains(ingredient.toLowerCase()) ||
-              ingredient.toLowerCase().contains(recipeIngredient.toLowerCase())) {
-            matchCount++;
-            break;
-          }
-        }
-      }
-      recipe['matchedIngredients'] = matchCount;
+    try {
+      // Call API to get recipes based on detected ingredients
+      // This will be implemented when the backend API is ready
+      setState(() {
+        _isLoading = false;
+        _suggestedRecipes = [];
+      });
+    } catch (e) {
+      print('Error loading ingredient results: $e');
+      setState(() {
+        _isLoading = false;
+        _suggestedRecipes = [];
+      });
     }
-
-    // Sort by matched ingredients (descending) and rating
-    allRecipes.sort((a, b) {
-      if (a['matchedIngredients'] != b['matchedIngredients']) {
-        return b['matchedIngredients'].compareTo(a['matchedIngredients']);
-      }
-      return b['rating'].compareTo(a['rating']);
-    });
-
-    return allRecipes.where((recipe) => recipe['matchedIngredients'] > 0).take(8).toList();
   }
+
 
   void _toggleIngredientAvailability(int index) {
     setState(() {
@@ -413,32 +236,96 @@ class _ScanResultsPageState extends State<ScanResultsPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Enhanced AI processing indicator
           Container(
-            width: 80,
-            height: 80,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.green.withOpacity(0.1),
+              border: Border.all(color: Colors.green.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
             ),
-            child: const Center(
+            child: Stack(
+              children: [
+                Center(
+                  child: Icon(
+                    widget.scanType == 'Food' ? Icons.restaurant : Icons.search,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                ),
+                const Center(
               child: CircularProgressIndicator(
                 color: Colors.green,
-                strokeWidth: 3,
-              ),
+                    strokeWidth: 4,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'Processing results...',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+          const SizedBox(height: 32),
+          
+          // AI Processing text with animation
+          AnimatedBuilder(
+            animation: _fadeAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: (0.7 + (_fadeAnimation.value * 0.3)).clamp(0.0, 1.0),
+                child: Text(
+                  '🤖 AI Processing Results...',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
+              );
+            },
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Processing steps
+          _buildResultsProcessingSteps(),
+          
+          const SizedBox(height: 24),
+          
+          // Progress indicator
+          Container(
+            width: 200,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: AnimatedBuilder(
+              animation: _fadeAnimation,
+              builder: (context, child) {
+                return FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: _fadeAnimation.value,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
           Text(
-            'Analyzing your ${widget.scanType.toLowerCase()}',
+            'Finding the best recipes for you...',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -446,6 +333,53 @@ class _ScanResultsPageState extends State<ScanResultsPage>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildResultsProcessingSteps() {
+    final steps = widget.scanType == 'Food' 
+        ? ['🍽️ Analyzing detected food', '📚 Searching recipe database', '✨ Generating suggestions']
+        : ['🥬 Processing ingredients', '🔍 Matching recipes', '⭐ Ranking by relevance'];
+    
+    return Column(
+      children: steps.asMap().entries.map((entry) {
+        final index = entry.key;
+        final step = entry.value;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _fadeAnimation,
+                builder: (context, child) {
+                  final isActive = _fadeAnimation.value > (index * 0.33);
+                  return Icon(
+                    isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: isActive ? Colors.green : Colors.grey[400],
+                    size: 16,
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              AnimatedBuilder(
+                animation: _fadeAnimation,
+                builder: (context, child) {
+                  final isActive = _fadeAnimation.value > (index * 0.33);
+                  return Text(
+                    step,
+                    style: TextStyle(
+                      color: isActive ? Colors.black87 : Colors.grey[600],
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 

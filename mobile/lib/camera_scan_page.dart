@@ -9,6 +9,7 @@ import 'services/api_service.dart';
 import 'enhanced_scan_results_page.dart';
 import 'ingredient_scan_results_page.dart';
 import 'progressive_ingredient_scan_page.dart';
+import 'utils/dialog_helper.dart';
 
 class CameraScanPage extends StatefulWidget {
   final String scanType; // 'Food' or 'Ingredient'
@@ -27,13 +28,13 @@ class _CameraScanPageState extends State<CameraScanPage>
   bool _isScanning = false;
   bool _isAutoScanning = false;
   bool _flashEnabled = false;
-  bool _frontCamera = false;
+  // bool _frontCamera = false; // Removed unused variable
   List<Map<String, dynamic>> _detectedItems = [];
   
   late AnimationController _scanAnimationController;
   late AnimationController _pulseAnimationController;
   late AnimationController _detectionAnimationController;
-  late Animation<double> _scanAnimation;
+  // late Animation<double> _scanAnimation; // Removed unused animation
   late Animation<double> _pulseAnimation;
   late Animation<double> _detectionAnimation;
 
@@ -63,13 +64,7 @@ class _CameraScanPageState extends State<CameraScanPage>
       vsync: this,
     )..repeat();
     
-    _scanAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _scanAnimationController,
-      curve: Curves.easeInOut,
-    ));
+    // _scanAnimation removed - was unused
 
     // Pulse animation for shutter button
     _pulseAnimationController = AnimationController(
@@ -163,57 +158,32 @@ class _CameraScanPageState extends State<CameraScanPage>
   }
 
   void _showPermissionDeniedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Camera Permission Required'),
-        content: const Text('This app needs camera access to scan food and ingredients. Please grant camera permission in settings.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
+    DialogHelper.showInfo(
+      context,
+      title: "Camera Permission Required 📷",
+      message: "This app needs camera access to scan food and ingredients. Please grant camera permission in settings.",
+      buttonText: "Open Settings",
+      onPressed: () {
+        Navigator.pop(context);
+        openAppSettings();
+      },
     );
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+    DialogHelper.showError(
+      context,
+      title: "Error",
+      message: message,
     );
   }
 
   void _showAuthenticationRequiredDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Login Required'),
-        content: const Text('You need to be logged in to scan images. Please log in to your account first.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context); // Go back to previous screen
-            },
-            child: const Text('Go to Login'),
-          ),
-        ],
-      ),
+    DialogHelper.showAuthError(
+      context,
+      onLogin: () {
+        Navigator.pop(context); // Go back to previous screen
+      },
     );
   }
 
@@ -225,46 +195,11 @@ class _CameraScanPageState extends State<CameraScanPage>
           timer.cancel();
           return;
         }
-        if (!_isScanning) {
-          _simulateRealtimeDetection();
-        }
+        // Real-time detection simulation removed - using real AI detection only
       });
     }
   }
 
-  void _simulateRealtimeDetection() {
-    setState(() {
-      _isAutoScanning = true;
-      _detectedItems = _generateRandomDetections();
-    });
-    
-    _detectionAnimationController.forward();
-    
-    Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
-        setState(() {
-          _isAutoScanning = false;
-        });
-        _detectionAnimationController.reverse();
-      }
-    });
-  }
-
-  List<Map<String, dynamic>> _generateRandomDetections() {
-    final ingredients = [
-      {'name': 'Tomatoes', 'confidence': 0.95, 'x': 0.2, 'y': 0.3, 'width': 0.15, 'height': 0.12},
-      {'name': 'Onion', 'confidence': 0.88, 'x': 0.6, 'y': 0.4, 'width': 0.12, 'height': 0.10},
-      {'name': 'Garlic', 'confidence': 0.92, 'x': 0.4, 'y': 0.6, 'width': 0.08, 'height': 0.06},
-      {'name': 'Bell Pepper', 'confidence': 0.85, 'x': 0.1, 'y': 0.7, 'width': 0.18, 'height': 0.15},
-      {'name': 'Ginger', 'confidence': 0.78, 'x': 0.7, 'y': 0.2, 'width': 0.10, 'height': 0.08},
-    ];
-    
-    // Return 2-4 random ingredients
-    final random = DateTime.now().millisecond;
-    final count = 2 + (random % 3);
-    ingredients.shuffle();
-    return ingredients.take(count).toList();
-  }
 
   void _toggleFlash() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
@@ -289,7 +224,7 @@ class _CameraScanPageState extends State<CameraScanPage>
     
     await _setupCamera(_cameras[nextIndex]);
     setState(() {
-      _frontCamera = _cameras[nextIndex].lensDirection == CameraLensDirection.front;
+      // _frontCamera removed - was unused
     });
     HapticFeedback.lightImpact();
   }
@@ -356,17 +291,24 @@ class _CameraScanPageState extends State<CameraScanPage>
         }
       }
 
-      // Navigate to results based on scan type
-      Navigator.push(
+      // Show success dialog and navigate to results
+      DialogHelper.showScanSuccess(
         context,
-        MaterialPageRoute(
-          builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
-              ? IngredientScanResultsPage(imageFile: imageFile)
-              : EnhancedScanResultsPage(
-                  imageFile: imageFile,
-                  scanType: widget.scanType,
-                ),
-        ),
+        scanType: widget.scanType,
+        itemCount: detectedItems.length,
+        onViewResults: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
+                  ? IngredientScanResultsPage(imageFile: imageFile)
+                  : EnhancedScanResultsPage(
+                      imageFile: imageFile,
+                      scanType: widget.scanType,
+                    ),
+            ),
+          );
+        },
       );
     } catch (e) {
       setState(() {
@@ -390,12 +332,9 @@ class _CameraScanPageState extends State<CameraScanPage>
 
   void _openManualEntry() {
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Manual ingredient entry would be implemented here'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
+    DialogHelper.showComingSoon(
+      context,
+      featureName: "Manual Ingredient Entry",
     );
   }
 
@@ -465,17 +404,24 @@ class _CameraScanPageState extends State<CameraScanPage>
         detectedItems = ['No ${scanType}s detected. Try adjusting lighting or angle.'];
       }
 
-      // Navigate to results page based on scan type
-      Navigator.push(
+      // Show success dialog and navigate to results
+      DialogHelper.showScanSuccess(
         context,
-        MaterialPageRoute(
-          builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
-              ? IngredientScanResultsPage(imageFile: imageFile)
-              : EnhancedScanResultsPage(
-                  imageFile: imageFile,
-                  scanType: widget.scanType,
-                ),
-        ),
+        scanType: widget.scanType,
+        itemCount: detectedItems.length,
+        onViewResults: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => widget.scanType.toLowerCase() == 'ingredient'
+                  ? IngredientScanResultsPage(imageFile: imageFile)
+                  : EnhancedScanResultsPage(
+                      imageFile: imageFile,
+                      scanType: widget.scanType,
+                    ),
+            ),
+          );
+        },
       );
     } catch (e) {
       setState(() {
@@ -487,30 +433,14 @@ class _CameraScanPageState extends State<CameraScanPage>
       print('❌ Full error details: ${e.toString()}');
       
       // Show more specific error messages
-      String errorMessage = 'Error scanning image';
-      if (e.toString().contains('Network') || e.toString().contains('connect')) {
-        errorMessage = 'Network error. Check your connection and try again.';
-      } else if (e.toString().contains('timeout')) {
-        errorMessage = 'Scan timed out. Please try again.';
+      if (e.toString().contains('Network') || e.toString().contains('connect') || 
+          e.toString().contains('SocketException')) {
+        DialogHelper.showNetworkError(context, onRetry: _performScan);
       } else if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-        errorMessage = 'Authentication required. Please log in to scan images.';
-      } else if (e.toString().contains('ApiException')) {
-        errorMessage = e.toString();
-      } else if (e.toString().contains('backend server')) {
-        errorMessage = 'Cannot reach server. Check network and try again.';
-      } else if (e.toString().contains('SocketException')) {
-        errorMessage = 'Network connection failed. Check WiFi and server IP.';
-      } else if (e.toString().contains('FormatException')) {
-        errorMessage = 'Invalid server response. Check backend configuration.';
-      }
-      
-      print('📱 Showing error to user: $errorMessage');
-      _showError(errorMessage);
-      
-      // Show authentication dialog if needed
-      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
         _showAuthenticationRequiredDialog();
         return;
+      } else {
+        DialogHelper.showScanError(context, onRetry: _performScan);
       }
       
       // For other errors, just show the error message
@@ -525,13 +455,60 @@ class _CameraScanPageState extends State<CameraScanPage>
     if (widget.scanType.toLowerCase() == 'ingredient') {
       return Scaffold(
         backgroundColor: Colors.white,
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Colors.green),
-              SizedBox(height: 16),
-              Text('Loading Progressive Scan...', style: TextStyle(fontSize: 16)),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.green.withOpacity(0.1),
+                  border: Border.all(color: Colors.green.withOpacity(0.3), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.2),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    const Center(
+                      child: Icon(
+                        Icons.search,
+                        color: Colors.green,
+                        size: 35,
+                      ),
+                    ),
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.green,
+                        strokeWidth: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '🤖 Loading Progressive Scanner...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Preparing advanced ingredient detection',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
             ],
           ),
         ),
@@ -640,20 +617,26 @@ class _CameraScanPageState extends State<CameraScanPage>
     return Container(
       width: double.infinity,
       height: double.infinity,
-      color: Colors.black.withOpacity(0.4),
+      color: Colors.black.withOpacity(0.8),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Enhanced AI processing indicator
             Container(
-              width: 100,
-              height: 100,
+              width: 120,
+              height: 120,
               decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.green,
-                  width: 3,
-                ),
+                border: Border.all(color: Colors.green, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
               ),
               child: Stack(
                 children: [
@@ -661,38 +644,129 @@ class _CameraScanPageState extends State<CameraScanPage>
                     child: Icon(
                       widget.scanType == 'Food' ? Icons.restaurant : Icons.search,
                       color: Colors.green,
-                      size: 40,
+                      size: 50,
                     ),
                   ),
                   Positioned.fill(
                     child: CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                      strokeWidth: 3,
+                      strokeWidth: 4,
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 32),
+            
+            // AI Processing text with animation
+            AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: (0.7 + (_pulseAnimation.value * 0.3)).clamp(0.0, 1.0),
+                  child: Text(
+                    '🤖 AI Processing ${widget.scanType}...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Processing steps
+            _buildProcessingSteps(),
+            
             const SizedBox(height: 24),
-            Text(
-              _isScanning ? 'Analyzing ${widget.scanType.toLowerCase()}...' : 'Processing...',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            
+            // Progress indicator
+            Container(
+              width: 200,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: _pulseAnimation.value,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-            const SizedBox(height: 8),
+            
+            const SizedBox(height: 16),
+            
             Text(
-              'Keep camera steady',
+              'This may take a few seconds...',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withOpacity(0.7),
                 fontSize: 14,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProcessingSteps() {
+    final steps = widget.scanType == 'Food' 
+        ? ['📸 Analyzing image', '🔍 Detecting food items', '🍽️ Identifying dishes']
+        : ['📸 Analyzing image', '🔍 Detecting ingredients', '🥬 Identifying items'];
+    
+    return Column(
+      children: steps.asMap().entries.map((entry) {
+        final index = entry.key;
+        final step = entry.value;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final isActive = _pulseAnimation.value > (index * 0.33);
+                  return Icon(
+                    isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: isActive ? Colors.green : Colors.white.withOpacity(0.5),
+                    size: 16,
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final isActive = _pulseAnimation.value > (index * 0.33);
+                  return Text(
+                    step,
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.white.withOpacity(0.6),
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 

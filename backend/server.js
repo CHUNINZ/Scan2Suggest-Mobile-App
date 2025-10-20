@@ -182,18 +182,23 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('📱 Mobile devices can connect using your computer\'s IP address');
   
   // Get and display all network interfaces
-  const os = require('os');
-  const networkInterfaces = os.networkInterfaces();
-  console.log('\n📡 Available network addresses:');
-  
-  Object.keys(networkInterfaces).forEach((interfaceName) => {
-    const interfaces = networkInterfaces[interfaceName];
-    interfaces.forEach((interface) => {
-      if (interface.family === 'IPv4' && !interface.internal) {
-        console.log(`   ${interfaceName}: http://${interface.address}:${PORT}/api`);
-      }
+  try {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    console.log('\n📡 Available network addresses:');
+    
+    Object.keys(networkInterfaces).forEach((interfaceName) => {
+      const interfaces = networkInterfaces[interfaceName];
+      interfaces.forEach((interface) => {
+        if (interface.family === 'IPv4' && !interface.internal) {
+          console.log(`   ${interfaceName}: http://${interface.address}:${PORT}/api`);
+        }
+      });
     });
-  });
-  
-  console.log('\n💡 Use any of the above IP addresses in your mobile app config');
+    
+    console.log('\n💡 Use any of the above IP addresses in your mobile app config');
+  } catch (error) {
+    console.log('\n⚠️  Could not retrieve network interfaces');
+    console.log('💡 Run "ifconfig" (Mac/Linux) or "ipconfig" (Windows) to find your IP address');
+  }
 });

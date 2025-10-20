@@ -34,6 +34,10 @@ dependencies:
   
   # Loading animations
   shimmer: ^3.0.0
+  
+  # Dialog and alert libraries
+  rflutter_alert: ^2.0.7
+  awesome_dialog: ^2.1.0
 
 dev_dependencies:
   flutter_test:

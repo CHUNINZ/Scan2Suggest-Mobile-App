@@ -181,7 +181,7 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
 
     try {
       // Use email as name for now, or you can add a name field
-      await ApiService.register(
+      final response = await ApiService.register(
         name: email.split('@')[0], // Use email prefix as name
         email: email,
         password: password,
@@ -240,11 +240,11 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration duration = const Duration(seconds: 2)}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 2),
+        duration: duration,
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppTheme.error,
         shape: RoundedRectangleBorder(

@@ -1,0 +1,35 @@
+📧 Email service configured for Gmail
+✅ Roboflow AI service initialized
+   🍽️  Food API: Filipino Food Dataset
+   🥬 Ingredient API: Ingredients Detector
+✅ TheMealDB Recipe service initialized (Free API)
+✅ Ingredient Detection Service initialized
+✅ Recipe Suggestion Service initialized
+✅ Recipe Service initialized
+🚀 Server running on port 3000
+📱 API available at http://0.0.0.0:3000/api
+🔌 Socket.IO server running
+📱 Mobile devices can connect using your computer's IP address
+node:os:68
+      throw new ERR_SYSTEM_ERROR(ctx);
+      ^
+
+SystemError [ERR_SYSTEM_ERROR]: A system error occurred: uv_interface_addresses returned Unknown system error 1 (Unknown system error 1)
+    at Object.networkInterfaces (node:os:277:16)
+    at Server.<anonymous> (/Users/admin/Documents/scan2suggestss/backend/server.js:186:32)
+    at Object.onceWrapper (node:events:631:28)
+    at Server.emit (node:events:529:35)
+    at emitListeningNT (node:net:1851:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:81:21) {
+  code: 'ERR_SYSTEM_ERROR',
+  info: {
+    errno: 1,
+    code: 'Unknown system error 1',
+    message: 'Unknown system error 1',
+    syscall: 'uv_interface_addresses'
+  },
+  errno: [Getter/Setter],
+  syscall: [Getter/Setter]
+}
+
+Node.js v18.20.8

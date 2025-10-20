@@ -9,8 +9,8 @@ class EmailService {
   initializeTransporter() {
     // Check if email credentials are provided
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('⚠️  No email credentials found. Using test mode (codes will be logged to console).');
-      console.log('📧 To enable real emails, create a .env file with EMAIL_USER and EMAIL_PASS');
+      console.error('❌ Email credentials not found in .env file.');
+      console.error('📧 Please ensure EMAIL_USER and EMAIL_PASS are set in your .env file.');
       this.transporter = null;
       return;
     }
@@ -58,15 +58,15 @@ class EmailService {
         if (result.success) {
           console.log('✅ Email service connection successful');
         } else {
-          console.log('❌ Email service connection failed:', result.message);
-          console.log('📧 Falling back to console logging mode');
+          console.error('❌ Email service connection failed:', result.message);
+          console.error('📧 Please check your email credentials and network connection');
           this.transporter = null;
         }
       });
 
     } catch (error) {
       console.error('❌ Error initializing email transporter:', error.message);
-      console.log('📧 Falling back to console logging mode');
+      console.error('📧 Please check your email configuration in .env file');
       this.transporter = null;
     }
   }
@@ -74,9 +74,8 @@ class EmailService {
   async sendPasswordResetCode(email, code) {
     try {
       if (!this.transporter) {
-        console.log(`📧 [EMAIL SERVICE] Password reset code for ${email}: ${code}`);
-        console.log(`📧 [EMAIL SERVICE] To enable real emails, set EMAIL_USER and EMAIL_PASS in .env`);
-        return { success: true, message: 'Code logged to console (development mode)' };
+        console.error('❌ [EMAIL SERVICE] Email transporter not configured. Please check your .env file.');
+        return { success: false, message: 'Email service not configured. Please contact support.' };
       }
 
       const mailOptions = {
@@ -127,23 +126,21 @@ class EmailService {
 
     } catch (error) {
       console.error('📧 [EMAIL SERVICE] Error sending password reset email:', error);
-      console.log(`📧 [EMAIL SERVICE] FALLBACK - Password reset code for ${email}: ${code}`);
       
       return { 
-        success: true, 
-        message: 'Email service unavailable, code logged to console',
-        fallback: true 
+        success: false,
+        message: 'Failed to send password reset email. Please try again or contact support.',
+        error: error.message
       };
     }
   }
 
   async sendEmailVerificationCode(email, code) {
     try {
-      // If no transporter configured, just log the code (development mode)
+      // Ensure transporter is configured for real email sending
       if (!this.transporter) {
-        console.log(`📧 [EMAIL SERVICE] Email verification code for ${email}: ${code}`);
-        console.log(`📧 [EMAIL SERVICE] To enable real emails, set EMAIL_USER and EMAIL_PASS in .env`);
-        return { success: true, message: 'Code logged to console (development mode)' };
+        console.error('❌ [EMAIL SERVICE] Email transporter not configured. Please check your .env file.');
+        return { success: false, message: 'Email service not configured. Please contact support.' };
       }
 
       const mailOptions = {
@@ -199,13 +196,10 @@ class EmailService {
     } catch (error) {
       console.error('📧 [EMAIL SERVICE] Error sending email verification:', error);
       
-      // Fallback to console logging if email fails
-      console.log(`📧 [EMAIL SERVICE] FALLBACK - Email verification code for ${email}: ${code}`);
-      
       return { 
-        success: true, // Still return success so the flow continues
-        message: 'Email service unavailable, code logged to console',
-        fallback: true 
+        success: false,
+        message: 'Failed to send verification email. Please try again or contact support.',
+        error: error.message
       };
     }
   }

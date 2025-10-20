@@ -237,7 +237,7 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
+      backgroundColor: Colors.grey[50],
       body: _buildModernBody(),
     );
   }
@@ -260,11 +260,24 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
 
   Widget _buildLoadingState() {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
+      backgroundColor: Colors.grey[50],
       body: CustomScrollView(
         slivers: [
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: const Text(
+                'Discover Users',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ),
           SliverPadding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) => const UserCardSkeleton(),
@@ -279,7 +292,7 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
 
   Widget _buildErrorState() {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
+      backgroundColor: Colors.grey[50],
       body: Center(
         child: Container(
           margin: const EdgeInsets.all(24),
@@ -345,13 +358,22 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
 
   Widget _buildEmptyState() {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
-      body: Center(
+      backgroundColor: Colors.grey[50],
+      body: RefreshIndicator(
+        onRefresh: _refreshUsers,
+        color: AppTheme.primaryDarkGreen,
+        backgroundColor: Colors.white,
+        strokeWidth: 2.0,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: Center(
         child: Container(
           margin: const EdgeInsets.all(24),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceWhite,
+                  color: Colors.white,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
@@ -396,13 +418,20 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
               ),
               textAlign: TextAlign.center,
             ),
-              const SizedBox(height: 32),
-              _buildModernButton(
-                text: 'Refresh',
-                onPressed: _loadUsers,
-                isPrimary: true,
+                    const SizedBox(height: 16),
+                    Text(
+                      '⬇️ Pull down to refresh',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary.withOpacity(0.5),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
         ),
@@ -413,12 +442,29 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     return RefreshIndicator(
       onRefresh: _refreshUsers,
       color: AppTheme.primaryDarkGreen,
+      backgroundColor: Colors.white,
+      strokeWidth: 2.0,
       child: CustomScrollView(
         controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          // Clean header
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: const Text(
+                'Discover Users',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ),
+          // User list
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -455,76 +501,54 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     final isFollowing = _followingUsers.contains(userId);
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceWhite,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(12),
           onTap: () => _openUserProfile(user),
       child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-                // Header with profile and follow button
+                // Main content row
             Row(
               children: [
-                    // Profile picture with modern styling
+                    // Profile picture - simple and clean
                 GestureDetector(
                   onTap: () => _openUserProfile(user),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                          gradient: AppTheme.primaryGradient,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryDarkGreen.withOpacity(0.3),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(3),
                     child: CircleAvatar(
-                          radius: 36,
-                          backgroundColor: AppTheme.surfaceWhite,
+                        radius: 30,
+                        backgroundColor: AppTheme.primaryDarkGreen.withOpacity(0.1),
                       backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl) : null,
                       child: profileImageUrl == null
-                              ? Container(
-                                  decoration: BoxDecoration(
-                                    gradient: AppTheme.primaryGradient,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
+                            ? Text(
                               user['name']?.toString().isNotEmpty == true
                                   ? user['name'][0].toUpperCase()
                                   : 'U',
-                              style: const TextStyle(
-                                        fontSize: 32,
+                                style: TextStyle(
+                                  fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.surfaceWhite,
-                                      ),
-                                    ),
+                                  color: AppTheme.primaryDarkGreen,
                               ),
                             )
                           : null,
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                 
-                // User info
+                    // User info - clean and simple
                 Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,103 +556,52 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
                         Text(
                           user['name'] ?? 'Unknown User',
                           style: const TextStyle(
-                              fontSize: 20,
+                              fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                              letterSpacing: -0.3,
+                              color: Colors.black87,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                           const SizedBox(height: 4),
-                          if (user['bio']?.toString().isNotEmpty == true) ...[
                           Text(
-                            user['bio'],
+                            user['bio']?.toString().isNotEmpty == true
+                                ? user['bio']
+                                : 'Food enthusiast and recipe creator',
                             style: TextStyle(
                                 fontSize: 14,
-                                color: AppTheme.textSecondary,
+                              color: Colors.grey[600],
                                 height: 1.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          ] else ...[
-                            Text(
-                              'Food enthusiast',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.textSecondary.withOpacity(0.7),
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
                     
-                    // Modern follow button
-                    _buildModernFollowButton(isFollowing, userId),
+                    // Follow button - clean and simple
+                    _buildCleanFollowButton(isFollowing, userId),
                   ],
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 
-                // Modern stats section
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.backgroundOffWhite,
-                        AppTheme.surfaceWhite,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                // Stats row - simple and clean like the image
+                Row(
+                  children: [
+                    _buildCleanStatItem(
+                      icon: Icons.people,
+                      value: _formatNumber(user['followersCount']),
+                      label: 'followers',
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.primaryDarkGreen.withOpacity(0.1),
-                      width: 1,
+                    const SizedBox(width: 20),
+                    _buildCleanStatItem(
+                      icon: Icons.restaurant_menu,
+                      value: user['recipesCount'].toString(),
+                      label: 'posts',
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildModernStatItem(
-                          icon: Icons.restaurant_menu_rounded,
-                          value: user['recipesCount'].toString(),
-                          label: 'Recipes',
-                          color: AppTheme.primaryDarkGreen,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: AppTheme.textDisabled.withOpacity(0.3),
-                      ),
-                      Expanded(
-                        child: _buildModernStatItem(
-                          icon: Icons.people_rounded,
-                          value: user['followersCount'].toString(),
-                          label: 'Followers',
-                          color: AppTheme.secondaryLightGreen,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: AppTheme.textDisabled.withOpacity(0.3),
-                      ),
-                      Expanded(
-                        child: _buildModernStatItem(
-                          icon: Icons.favorite_rounded,
-                          value: user['totalLikes'].toString(),
-                          label: 'Likes',
-                          color: Colors.red.shade400,
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -638,26 +611,11 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     );
   }
 
-  Widget _buildModernFollowButton(bool isFollowing, String userId) {
+  Widget _buildCleanFollowButton(bool isFollowing, String userId) {
     return Container(
               decoration: BoxDecoration(
-        gradient: isFollowing 
-            ? LinearGradient(
-                colors: [Colors.grey.shade300, Colors.grey.shade200],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : AppTheme.primaryGradient,
+        color: isFollowing ? Colors.green : Colors.blue,
                         borderRadius: BorderRadius.circular(20),
-        boxShadow: isFollowing 
-            ? null
-            : [
-                BoxShadow(
-                  color: AppTheme.primaryDarkGreen.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -665,25 +623,14 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
           borderRadius: BorderRadius.circular(20),
           onTap: () => _toggleFollow(userId),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-              mainAxisSize: MainAxisSize.min,
-                children: [
-                Icon(
-                  isFollowing ? Icons.check_rounded : Icons.add_rounded,
-                  color: isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
                       isFollowing ? 'Following' : 'Follow',
-                      style: TextStyle(
-                        color: isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
-                        fontWeight: FontWeight.bold,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
                     fontSize: 14,
-                  ),
-                  ),
-                ],
+              ),
               ),
             ),
         ),
@@ -691,46 +638,45 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     );
   }
 
-  Widget _buildModernStatItem({
+  Widget _buildCleanStatItem({
     required IconData icon,
     required String value,
     required String label,
-    required Color color,
   }) {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-            Container(
-          padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-          child: Icon(
+        Icon(
             icon,
-            color: color,
-            size: 20,
-          ),
+          size: 16,
+          color: Colors.grey[600],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(width: 4),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondary,
-            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            color: Colors.grey[600],
           ),
         ),
       ],
     );
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
   }
 
   Widget _buildModernButton({
