@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'social_feed_page.dart';
 import 'discover_page.dart';
 import 'upload_page.dart';
-import 'profile_page.dart';
+import 'settings_page.dart';
 import 'main_scaffold.dart';
 
 class MainNavigationController extends StatefulWidget {
@@ -24,7 +24,7 @@ class _MainNavigationControllerState extends State<MainNavigationController>
     const SocialFeedPage(),      // Index 0 - Social Feed
     const DiscoverPage(),        // Index 1 - Discover
     const UploadPage(),          // Index 2 - Upload (mapped from index 3)
-    const ProfilePage(),         // Index 3 - Profile (mapped from index 4)
+    const SettingsPage(),        // Index 3 - Settings (mapped from index 4)
   ];
 
   // Page titles for the app bar
@@ -32,7 +32,7 @@ class _MainNavigationControllerState extends State<MainNavigationController>
     'Social Feed',         // Index 0 - Social Feed
     'Discover',           // Index 1 - Discover
     'Upload Recipe',      // Index 2 - Upload (from nav index 3)
-    'Profile',           // Index 3 - Profile (from nav index 4)
+    'Settings',           // Index 3 - Settings (from nav index 4)
   ];
 
   @override

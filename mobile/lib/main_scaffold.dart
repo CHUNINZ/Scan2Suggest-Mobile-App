@@ -419,7 +419,7 @@ class _MainScaffoldState extends State<MainScaffold>
                         _buildNavItem(1, 'assets/icons/target.png', 'assets/icons/target.png', 'Discover'),
                         const SizedBox(width: 64), // Space for FAB
                         _buildNavItem(3, Icons.upload, Icons.upload_outlined, 'Upload'),
-                        _buildNavItem(4, Icons.person, Icons.person_outline, 'Profile'),
+                        _buildNavItem(4, Icons.settings, Icons.settings_outlined, 'Settings'),
                       ],
                     ),
                   ),
@@ -495,7 +495,7 @@ class _MainScaffoldState extends State<MainScaffold>
       case 3:
         return const Icon(Icons.upload, color: AppTheme.primaryDarkGreen, size: 28);
       case 4:
-        return const Icon(Icons.person, color: AppTheme.primaryDarkGreen, size: 28);
+        return const Icon(Icons.settings, color: AppTheme.primaryDarkGreen, size: 28);
       default:
         return const Icon(Icons.dynamic_feed, color: AppTheme.primaryDarkGreen, size: 28);
     }

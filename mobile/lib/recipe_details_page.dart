@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'config/api_config.dart';
 import 'services/api_service.dart';
-import '../widgets/loading_skeletons.dart';
+import 'utils/dialog_helper.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -20,6 +20,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   bool _isLoadingLike = false;
   bool _isLoadingBookmark = false;
   
+  // Comments state
+  List<Map<String, dynamic>> _comments = [];
+  bool _isLoadingComments = false;
+  final TextEditingController _commentController = TextEditingController();
+  bool _isSubmittingComment = false;
+  
   @override
   void initState() {
     super.initState();
@@ -36,6 +42,15 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     _isLiked = widget.recipe['isLiked'] ?? false;
     _isBookmarked = widget.recipe['isBookmarked'] ?? false;
     _likesCount = _getLikesCount();
+    
+    // Load comments
+    _loadComments();
+  }
+  
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
   
   // Get real likes count from recipe data (handle both 'likes' and 'likesCount')
@@ -91,12 +106,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingLike = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isLiked ? '❤️ Added to liked recipes!' : 'Removed from liked recipes'),
-            backgroundColor: _isLiked ? Colors.red : Colors.grey[700],
-            duration: const Duration(seconds: 2),
-          ),
+        DialogHelper.showSuccess(
+          context,
+          title: _isLiked ? "Recipe Liked! ❤️" : "Recipe Unliked",
+          message: _isLiked ? "Added to your liked recipes!" : "Removed from your liked recipes",
         );
       } else {
         throw Exception(response['message'] ?? 'Failed to like recipe');
@@ -107,12 +120,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingLike = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
         );
       }
     }
@@ -141,12 +152,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingBookmark = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isBookmarked ? '🔖 Recipe saved!' : 'Recipe removed from saved'),
-            backgroundColor: _isBookmarked ? Colors.green : Colors.grey[700],
-            duration: const Duration(seconds: 2),
-          ),
+        DialogHelper.showSuccess(
+          context,
+          title: _isBookmarked ? "Recipe Saved! 🔖" : "Recipe Removed",
+          message: _isBookmarked ? "Added to your saved recipes!" : "Removed from your saved recipes",
         );
       } else {
         throw Exception(response['message'] ?? 'Failed to bookmark recipe');
@@ -157,12 +166,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _isLoadingBookmark = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
         );
       }
     }
@@ -277,30 +284,169 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         );
         
         if (response['success'] == true && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⭐ Thank you for your rating!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
+          DialogHelper.showSuccess(
+            context,
+            title: "Thank You! ⭐",
+            message: "Your rating has been submitted successfully!",
           );
         } else {
           throw Exception(response['message'] ?? 'Failed to rate recipe');
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
+          DialogHelper.showError(
+            context,
+            title: "Error",
+            message: e.toString().replaceAll('Exception: ', ''),
           );
         }
       }
     }
     
     reviewController.dispose();
+  }
+  
+  // Load comments
+  Future<void> _loadComments() async {
+    setState(() {
+      _isLoadingComments = true;
+    });
+    
+    try {
+      final recipeId = widget.recipe['id'] ?? widget.recipe['_id'];
+      if (recipeId == null) {
+        throw Exception('Recipe ID not found');
+      }
+      
+      final response = await ApiService.getComments(
+        recipeId: recipeId.toString(),
+        limit: 50,
+      );
+      
+      if (response['success'] == true && mounted) {
+        final comments = response['comments'] as List? ?? [];
+        setState(() {
+          _comments = comments.cast<Map<String, dynamic>>();
+          _isLoadingComments = false;
+        });
+      } else {
+        throw Exception(response['message'] ?? 'Failed to load comments');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingComments = false;
+        });
+        print('Error loading comments: $e');
+      }
+    }
+  }
+  
+  // Submit comment
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+    
+    setState(() {
+      _isSubmittingComment = true;
+    });
+    
+    HapticFeedback.lightImpact();
+    
+    try {
+      final recipeId = widget.recipe['id'] ?? widget.recipe['_id'];
+      if (recipeId == null) {
+        throw Exception('Recipe ID not found');
+      }
+      
+      final response = await ApiService.addComment(
+        recipeId: recipeId.toString(),
+        text: text,
+      );
+      
+      if (response['success'] == true && mounted) {
+        _commentController.clear();
+        await _loadComments(); // Reload comments
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Comment Added! 💬",
+          message: "Your comment has been posted successfully!",
+        );
+      } else {
+        throw Exception(response['message'] ?? 'Failed to add comment');
+      }
+    } catch (e) {
+      if (mounted) {
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingComment = false;
+        });
+      }
+    }
+  }
+  
+  // Delete comment
+  Future<void> _deleteComment(String commentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Comment'),
+        content: const Text('Are you sure you want to delete this comment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true) return;
+    
+    try {
+      final recipeId = widget.recipe['id'] ?? widget.recipe['_id'];
+      if (recipeId == null) {
+        throw Exception('Recipe ID not found');
+      }
+      
+      final response = await ApiService.deleteComment(
+        recipeId: recipeId.toString(),
+        commentId: commentId,
+      );
+      
+      if (response['success'] == true && mounted) {
+        await _loadComments(); // Reload comments
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Comment Deleted",
+          message: "The comment has been removed.",
+        );
+      } else {
+        throw Exception(response['message'] ?? 'Failed to delete comment');
+      }
+    } catch (e) {
+      if (mounted) {
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+    }
   }
 
   String? _getFullImageUrl(dynamic image) {
@@ -745,6 +891,223 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                             ),
                           );
                         }).toList(),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Comments Section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Comments (${_comments.length})',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            if (_isLoadingComments)
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.green,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Comment input
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  maxLines: null,
+                                  maxLength: 500,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Add a comment...',
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.all(16),
+                                    counterText: '',
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: _isSubmittingComment ? null : _submitComment,
+                                icon: _isSubmittingComment
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.green,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.send,
+                                        color: Colors.green,
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Comments list
+                        if (_comments.isEmpty && !_isLoadingComments)
+                          Container(
+                            padding: const EdgeInsets.all(32),
+                            child: const Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.comment_outlined,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No comments yet',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Be the first to comment!',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ..._comments.map((comment) {
+                            final user = comment['user'] as Map<String, dynamic>?;
+                            final userName = user?['name'] ?? 'Unknown User';
+                            final userImage = user?['profileImage'];
+                            final commentText = comment['text'] ?? '';
+                            final createdAt = comment['createdAt'];
+                            final commentId = comment['_id'];
+                            
+                            // Format date
+                            String formattedDate = 'Just now';
+                            if (createdAt != null) {
+                              try {
+                                final date = DateTime.parse(createdAt.toString());
+                                final now = DateTime.now();
+                                final difference = now.difference(date);
+                                
+                                if (difference.inDays > 0) {
+                                  formattedDate = '${difference.inDays}d ago';
+                                } else if (difference.inHours > 0) {
+                                  formattedDate = '${difference.inHours}h ago';
+                                } else if (difference.inMinutes > 0) {
+                                  formattedDate = '${difference.inMinutes}m ago';
+                                }
+                              } catch (e) {
+                                // Keep default "Just now"
+                              }
+                            }
+                            
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: Colors.green.shade100,
+                                        backgroundImage: userImage != null
+                                            ? NetworkImage(_getFullImageUrl(userImage)!)
+                                            : null,
+                                        child: userImage == null
+                                            ? Text(
+                                                userName[0].toUpperCase(),
+                                                style: const TextStyle(
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              userName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            Text(
+                                              formattedDate,
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Delete button for own comments
+                                      if (commentId != null)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            color: Colors.red,
+                                            size: 20,
+                                          ),
+                                          onPressed: () => _deleteComment(commentId.toString()),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    commentText,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                       ],
                     ),
                   ),

@@ -355,17 +355,9 @@ router.post('/:id/like', auth, async (req, res) => {
 
       // Send notification to recipe creator
       if (recipe.creator.toString() !== userId.toString()) {
+        const NotificationService = require('../services/notificationService');
         const io = req.app.get('io');
-        io.to(`user_${recipe.creator}`).emit('notification', {
-          type: 'like',
-          message: `${req.user.name} liked your recipe "${recipe.title}"`,
-          data: { recipeId: recipe._id },
-          sender: {
-            _id: req.user._id,
-            name: req.user.name,
-            profileImage: req.user.profileImage
-          }
-        });
+        await NotificationService.sendLikeNotification(recipe, req.user, io);
       }
     }
 
@@ -418,17 +410,9 @@ router.post('/:id/bookmark', auth, async (req, res) => {
 
       // Send notification to recipe creator
       if (recipe.creator.toString() !== userId.toString()) {
+        const NotificationService = require('../services/notificationService');
         const io = req.app.get('io');
-        io.to(`user_${recipe.creator}`).emit('notification', {
-          type: 'bookmark',
-          message: `${req.user.name} bookmarked your recipe "${recipe.title}"`,
-          data: { recipeId: recipe._id },
-          sender: {
-            _id: req.user._id,
-            name: req.user.name,
-            profileImage: req.user.profileImage
-          }
-        });
+        await NotificationService.sendBookmarkNotification(recipe, req.user, io);
       }
     }
 
@@ -505,6 +489,13 @@ router.post('/:id/rate', auth, [
     const populatedRecipe = await Recipe.findById(recipe._id)
       .populate('ratings.user', 'name profileImage');
 
+    // Send notification to recipe creator (if not rating own recipe)
+    if (recipe.creator.toString() !== req.user._id.toString()) {
+      const NotificationService = require('../services/notificationService');
+      const io = req.app.get('io');
+      await NotificationService.sendRatingNotification(recipe, req.user, rating, review, io);
+    }
+
     res.json({
       success: true,
       message: 'Rating submitted successfully',
@@ -513,6 +504,166 @@ router.post('/:id/rate', auth, [
     });
   } catch (error) {
     console.error('Rate recipe error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   POST /api/recipes/:id/comment
+// @desc    Add comment to recipe
+// @access  Private
+router.post('/:id/comment', auth, [
+  body('text')
+    .trim()
+    .notEmpty()
+    .withMessage('Comment text is required')
+    .isLength({ max: 500 })
+    .withMessage('Comment must be less than 500 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { text } = req.body;
+    const recipe = await Recipe.findById(req.params.id);
+
+    if (!recipe) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recipe not found'
+      });
+    }
+
+    // Add new comment
+    recipe.comments.push({
+      user: req.user._id,
+      text,
+      createdAt: new Date()
+    });
+
+    await recipe.save();
+
+    // Populate the comments with user data
+    const populatedRecipe = await Recipe.findById(recipe._id)
+      .populate('comments.user', 'name profileImage');
+
+    // Send notification to recipe creator (if not commenting on own recipe)
+    if (recipe.creator.toString() !== req.user._id.toString()) {
+      const NotificationService = require('../services/notificationService');
+      const io = req.app.get('io');
+      await NotificationService.sendCommentNotification(recipe, req.user, text, io);
+    }
+
+    res.json({
+      success: true,
+      message: 'Comment added successfully',
+      comments: populatedRecipe.comments,
+      commentsCount: populatedRecipe.comments.length
+    });
+  } catch (error) {
+    console.error('Add comment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/recipes/:id/comments
+// @desc    Get recipe comments
+// @access  Public
+router.get('/:id/comments', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const recipe = await Recipe.findById(req.params.id)
+      .populate({
+        path: 'comments.user',
+        select: 'name profileImage'
+      });
+
+    if (!recipe) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recipe not found'
+      });
+    }
+
+    // Sort comments by newest first and paginate
+    const allComments = recipe.comments.sort((a, b) => b.createdAt - a.createdAt);
+    const paginatedComments = allComments.slice(skip, skip + parseInt(limit));
+    const total = allComments.length;
+
+    res.json({
+      success: true,
+      comments: paginatedComments,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get comments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   DELETE /api/recipes/:id/comment/:commentId
+// @desc    Delete a comment
+// @access  Private
+router.delete('/:id/comment/:commentId', auth, async (req, res) => {
+  try {
+    const recipe = await Recipe.findById(req.params.id);
+
+    if (!recipe) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recipe not found'
+      });
+    }
+
+    const comment = recipe.comments.id(req.params.commentId);
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Comment not found'
+      });
+    }
+
+    // Check if user is the comment owner or recipe owner
+    if (comment.user.toString() !== req.user._id.toString() && 
+        recipe.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this comment'
+      });
+    }
+
+    recipe.comments.pull(req.params.commentId);
+    await recipe.save();
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully',
+      commentsCount: recipe.comments.length
+    });
+  } catch (error) {
+    console.error('Delete comment error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'

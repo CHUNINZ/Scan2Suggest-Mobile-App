@@ -63,6 +63,159 @@ class _ProgressiveIngredientScanPageState
     }
   }
 
+  Widget _buildSessionLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.green.withOpacity(0.1),
+              border: Border.all(color: Colors.green.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                const Center(
+                  child: Icon(
+                    Icons.search,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                ),
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.green,
+                    strokeWidth: 4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // AI Processing text with animation
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: (0.7 + (_pulseAnimation.value * 0.3)).clamp(0.0, 1.0),
+                child: const Text(
+                  '🤖 Loading Ingredient Session...',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Processing steps
+          _buildSessionLoadingSteps(),
+          
+          const SizedBox(height: 24),
+          
+          // Progress indicator
+          Container(
+            width: 200,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: _pulseAnimation.value,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          Text(
+            'Preparing your ingredient scanner...',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionLoadingSteps() {
+    final steps = [
+      '🔍 Checking existing session',
+      '📦 Loading saved ingredients',
+      '🚀 Preparing scanner'
+    ];
+    
+    return Column(
+      children: steps.asMap().entries.map((entry) {
+        final index = entry.key;
+        final step = entry.value;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final isActive = _pulseAnimation.value > (index * 0.33);
+                  return Icon(
+                    isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: isActive ? Colors.green : Colors.grey[400],
+                    size: 16,
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final isActive = _pulseAnimation.value > (index * 0.33);
+                  return Text(
+                    step,
+                    style: TextStyle(
+                      color: isActive ? Colors.black87 : Colors.grey[600],
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Future<void> _showScanOptions() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -385,16 +538,44 @@ class _ProgressiveIngredientScanPageState
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
+        builder: (context) => Center(
           child: Card(
             child: Padding(
-              padding: EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(24.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: Colors.green),
-                  SizedBox(height: 16),
-                  Text('Finding recipes...', style: TextStyle(fontSize: 16)),
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.green.withOpacity(0.1),
+                      border: Border.all(color: Colors.green, width: 2),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.green,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '🤖 AI Finding Recipes...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Matching ingredients to recipes',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -518,7 +699,7 @@ class _ProgressiveIngredientScanPageState
         ],
       ),
       body: _isLoadingSession
-          ? const Center(child: CircularProgressIndicator(color: Colors.green))
+          ? _buildSessionLoadingState()
           : Column(
               children: [
                 // Header section
@@ -651,18 +832,43 @@ class _ProgressiveIngredientScanPageState
                   Positioned.fill(
                     child: Container(
                       color: Colors.black45,
-                      child: const Center(
+                      child: Center(
                         child: Card(
                           child: Padding(
-                            padding: EdgeInsets.all(24.0),
+                            padding: const EdgeInsets.all(24.0),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircularProgressIndicator(color: Colors.green),
-                                SizedBox(height: 16),
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.green.withOpacity(0.1),
+                                    border: Border.all(color: Colors.green, width: 2),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.green,
+                                      strokeWidth: 3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  '🤖 AI Scanning Ingredient...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
                                 Text(
-                                  'Scanning ingredient...',
-                                  style: TextStyle(fontSize: 16),
+                                  'Analyzing image for ingredients',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
                               ],
                             ),

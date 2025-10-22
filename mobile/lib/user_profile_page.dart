@@ -9,11 +9,13 @@ import 'config/api_config.dart';
 class UserProfilePage extends StatefulWidget {
   final String userId;
   final String? userName;
+  final Map<String, dynamic>? preloadedUserData; // Optional pre-loaded user data
 
   const UserProfilePage({
     super.key,
     required this.userId,
     this.userName,
+    this.preloadedUserData,
   });
 
   @override
@@ -63,51 +65,101 @@ class _UserProfilePageState extends State<UserProfilePage> {
         following = currentUserResponse['user']['following'] as List? ?? [];
       }
 
-      // Get user profile (need to add this API endpoint)
-      final response = await ApiService.getRecipes(
-        creatorId: widget.userId,
-        limit: 1,
-      );
-
-      if (response['success'] == true && mounted) {
-        final recipes = response['recipes'] as List? ?? [];
-        if (recipes.isNotEmpty) {
-          final recipe = recipes[0];
-          final creator = recipe['creator'];
-          
-          setState(() {
-            _userProfile = {
-              'id': widget.userId,
-              'name': creator is Map ? creator['name'] : widget.userName ?? 'User',
-              'profileImage': creator is Map ? creator['profileImage'] : null,
-              'bio': '',
-              'location': '',
-              'followersCount': creator is Map ? creator['followersCount'] : 0,
-              'followingCount': creator is Map ? creator['followingCount'] : 0,
-            };
-            // Check if current user is following this profile
-            _isFollowing = following.any((id) => id.toString() == widget.userId.toString());
-            _isLoadingProfile = false;
-          });
-        } else {
-          // No recipes, create basic profile
-          setState(() {
-            _userProfile = {
-              'id': widget.userId,
-              'name': widget.userName ?? 'User',
-              'profileImage': null,
-              'bio': '',
-              'location': '',
-              'followersCount': 0,
-              'followingCount': 0,
-            };
-            // Check if current user is following this profile
-            _isFollowing = following.any((id) => id.toString() == widget.userId.toString());
-            _isLoadingProfile = false;
-          });
-        }
+      Map<String, dynamic> user;
+      
+      // Use preloaded data if available, otherwise fetch from API
+      if (widget.preloadedUserData != null) {
+        print('🔍 User ${widget.userId} - Using preloaded data: ${widget.preloadedUserData}');
+        user = widget.preloadedUserData!;
       } else {
-        throw Exception(response['message'] ?? 'Failed to load user profile');
+        // Get user profile using proper API endpoint
+        final response = await ApiService.getUserProfile(widget.userId);
+        
+        if (response['success'] != true) {
+          throw Exception(response['message'] ?? 'Failed to load user profile');
+        }
+        
+        user = response['user'];
+        print('🔍 User ${widget.userId} - Fetched from API: $user');
+      }
+
+      if (mounted) {
+        
+        // Get follower and following counts from user stats (same as discover page)
+        int followersCount = user['stats']?['followersCount'] ?? 
+                           user['followersCount'] ?? 0;
+        int followingCount = user['stats']?['followingCount'] ?? 
+                            user['followingCount'] ?? 0;
+        
+        print('🔍 User ${widget.userId} - User data: $user');
+        print('🔍 User ${widget.userId} - Stats: ${user['stats']}');
+        print('🔍 User ${widget.userId} - Followers count from stats: $followersCount');
+        print('🔍 User ${widget.userId} - Following count from stats: $followingCount');
+        
+        // Always try to fetch counts from API to ensure accuracy
+        try {
+          // Fetch followers with a high limit to get accurate count
+          final followersResponse = await ApiService.getFollowers(widget.userId, limit: 1000);
+          print('🔍 User ${widget.userId} - Full followers API response: $followersResponse');
+          
+          if (followersResponse['success'] == true) {
+            // Try different possible response structures
+            final apiFollowersCount = followersResponse['total'] ?? 
+                                     followersResponse['count'] ?? 
+                                     (followersResponse['followers'] as List?)?.length ?? 
+                                     (followersResponse['data'] as List?)?.length ?? 0;
+            
+            print('🔍 User ${widget.userId} - API followers count: $apiFollowersCount');
+            print('🔍 User ${widget.userId} - followers list length: ${(followersResponse['followers'] as List?)?.length ?? 0}');
+            print('🔍 User ${widget.userId} - data list length: ${(followersResponse['data'] as List?)?.length ?? 0}');
+            
+            // Use API count if it's higher than stats count
+            if (apiFollowersCount > followersCount) {
+              followersCount = apiFollowersCount;
+              print('🔍 User ${widget.userId} - Using API followers count: $followersCount');
+            }
+          }
+          
+          // Fetch following with a high limit to get accurate count
+          final followingResponse = await ApiService.getFollowing(widget.userId, limit: 1000);
+          print('🔍 User ${widget.userId} - Full following API response: $followingResponse');
+          
+          if (followingResponse['success'] == true) {
+            // Try different possible response structures
+            final apiFollowingCount = followingResponse['total'] ?? 
+                                     followingResponse['count'] ?? 
+                                     (followingResponse['following'] as List?)?.length ?? 
+                                     (followingResponse['data'] as List?)?.length ?? 0;
+            
+            print('🔍 User ${widget.userId} - API following count: $apiFollowingCount');
+            print('🔍 User ${widget.userId} - following list length: ${(followingResponse['following'] as List?)?.length ?? 0}');
+            print('🔍 User ${widget.userId} - data list length: ${(followingResponse['data'] as List?)?.length ?? 0}');
+            
+            // Use API count if it's higher than stats count
+            if (apiFollowingCount > followingCount) {
+              followingCount = apiFollowingCount;
+              print('🔍 User ${widget.userId} - Using API following count: $followingCount');
+            }
+          }
+        } catch (e) {
+          print('❌ Error fetching follower/following counts for user ${widget.userId}: $e');
+        }
+        
+        setState(() {
+          _userProfile = {
+            'id': widget.userId,
+            'name': user['name'] ?? widget.userName ?? 'User',
+            'profileImage': user['profileImage'],
+            'bio': user['bio'] ?? '',
+            'location': user['location'] ?? '',
+            'followersCount': followersCount,
+            'followingCount': followingCount,
+            'createdAt': user['createdAt'],
+          };
+          // Check if current user is following this profile
+          _isFollowing = following.any((id) => id.toString() == widget.userId.toString());
+          _isLoadingProfile = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -126,10 +178,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _isLoadingRecipes = true;
       });
 
-      final response = await ApiService.getRecipes(
-        creatorId: widget.userId,
-        limit: 50,
-      );
+      final response = await ApiService.getUserRecipes(widget.userId, limit: 50);
 
       if (response['success'] == true && mounted) {
         final recipes = response['recipes'] as List? ?? [];
@@ -237,44 +286,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
-  Future<void> _toggleBookmark(String recipeId, bool isCurrentlyBookmarked) async {
-    HapticFeedback.lightImpact();
-
-    try {
-      final response = await ApiService.bookmarkRecipe(recipeId);
-
-      if (response['success'] == true && mounted) {
-        setState(() {
-          // Update the recipe's bookmark status
-          final recipeIndex = _userRecipes.indexWhere((r) => r['id'] == recipeId);
-          if (recipeIndex != -1) {
-            _userRecipes[recipeIndex]['isBookmarked'] = response['isBookmarked'] ?? !isCurrentlyBookmarked;
-          }
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(response['isBookmarked'] == true ? '🔖 Recipe saved!' : 'Recipe removed from saved'),
-            backgroundColor: response['isBookmarked'] == true ? Colors.green : Colors.grey[700],
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      } else {
-        throw Exception(response['message'] ?? 'Failed to bookmark recipe');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
   String? _getFullImageUrl(dynamic image) {
     if (image == null || image.toString().isEmpty) return null;
     
@@ -288,10 +299,53 @@ class _UserProfilePageState extends State<UserProfilePage> {
     return '$baseUrl$imageStr';
   }
 
+  String _formatJoinDate(dynamic createdAt) {
+    if (createdAt == null) return 'Recently';
+    
+    try {
+      DateTime date;
+      if (createdAt is String) {
+        date = DateTime.parse(createdAt);
+      } else if (createdAt is DateTime) {
+        date = createdAt;
+      } else {
+        return 'Recently';
+      }
+      
+      final now = DateTime.now();
+      final difference = now.difference(date);
+      
+      if (difference.inDays < 1) {
+        return 'Today';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+      } else if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return '${weeks} week${weeks == 1 ? '' : 's'} ago';
+      } else if (difference.inDays < 365) {
+        final months = (difference.inDays / 30).floor();
+        return '${months} month${months == 1 ? '' : 's'} ago';
+      } else {
+        final years = (difference.inDays / 365).floor();
+        return '${years} year${years == 1 ? '' : 's'} ago';
+      }
+    } catch (e) {
+      return 'Recently';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundOffWhite,
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: _isLoadingProfile
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.primaryDarkGreen),
@@ -324,51 +378,45 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ],
                   ),
                 )
-              : CustomScrollView(
-                  slivers: [
-                    _buildHeader(),
+              : RefreshIndicator(
+                  onRefresh: _loadUserData,
+                  color: AppTheme.primaryDarkGreen,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      children: [
+                        _buildProfileHeader(),
+                        _buildActionButtons(),
+                        _buildStatsSection(),
                     _buildTabBar(),
-                    _buildRecipesList(),
+                        _buildRecipesSection(),
+                        const SizedBox(height: 100), // Bottom padding
                   ],
+                    ),
+                  ),
                 ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildProfileHeader() {
     final profileImageUrl = _getFullImageUrl(_userProfile?['profileImage']);
     
-    return SliverAppBar(
-      expandedHeight: 220,
-      pinned: true,
-      backgroundColor: AppTheme.surfaceWhite,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: AppTheme.primaryGradientDecoration(),
-          child: SafeArea(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
                 // Profile picture
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.surfaceWhite, width: 4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.textPrimary.withOpacity(0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+              border: Border.all(
+                color: Colors.grey.shade300,
+                width: 2,
+              ),
                   ),
                   child: CircleAvatar(
                     radius: 50,
-                    backgroundColor: AppTheme.surfaceWhite,
+              backgroundColor: AppTheme.primaryDarkGreen.withOpacity(0.1),
                     backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl) : null,
                     child: profileImageUrl == null
                         ? Text(
@@ -384,67 +432,79 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         : null,
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Name
+          const SizedBox(height: 16),
+          
+          // User name
                 Text(
                   _userProfile?['name'] ?? 'User',
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.surfaceWhite,
+              color: Colors.black87,
                   ),
+            textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                // Stats row
+          
+          // Bio
+          if (_userProfile?['bio']?.toString().isNotEmpty == true) ...[
+            Text(
+              _userProfile!['bio'],
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+          ],
+          
+          // Location
+          if (_userProfile?['location']?.toString().isNotEmpty == true)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildStatItem(
-                      _userRecipes.length.toString(),
-                      'Recipes',
-                    ),
-                    Container(
-                      height: 24,
-                      width: 1,
-                      color: AppTheme.surfaceWhite.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                    ),
-                    _buildStatItem(
-                      (_userProfile?['followersCount'] ?? 0).toString(),
-                      'Followers',
-                    ),
-                    Container(
-                      height: 24,
-                      width: 1,
-                      color: AppTheme.surfaceWhite.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                    ),
-                    _buildStatItem(
-                      (_userProfile?['followingCount'] ?? 0).toString(),
-                      'Following',
+                Icon(
+                  Icons.location_on,
+                  size: 16,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _userProfile!['location'],
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
                     ),
                   ],
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
-        child: Container(
-          color: AppTheme.surfaceWhite,
-          padding: const EdgeInsets.all(12),
-          child: SizedBox(
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        children: [
+          // Follow button
+          SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoadingFollow ? null : _toggleFollow,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isFollowing ? Colors.grey[300] : AppTheme.primaryDarkGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: AppTheme.primaryDarkGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(25),
                 ),
+                elevation: 0,
               ),
               child: _isLoadingFollow
                   ? const SizedBox(
@@ -458,25 +518,88 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _isFollowing ? Icons.check : Icons.person_add,
-                          color: _isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
-                          size: 20,
-                        ),
+                        const Icon(Icons.person_add, size: 20),
                         const SizedBox(width: 8),
                         Text(
                           _isFollowing ? 'Following' : 'Follow',
-                          style: TextStyle(
-                            color: _isFollowing ? AppTheme.textPrimary : AppTheme.surfaceWhite,
-                            fontWeight: FontWeight.bold,
+                          style: const TextStyle(
                             fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
             ),
           ),
+          const SizedBox(height: 12),
+          
+          // Message button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () {
+                // TODO: Implement message functionality
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Message feature coming soon!'),
+                    backgroundColor: AppTheme.primaryDarkGreen,
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primaryDarkGreen,
+                side: const BorderSide(color: AppTheme.primaryDarkGreen, width: 2),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.mail, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Message',
+                          style: TextStyle(
+                            fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 1),
         ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildStatItem(
+            _userRecipes.length.toString(),
+            'Recipes',
+          ),
+          _buildStatItem(
+            (_userProfile?['followersCount'] ?? 0).toString(),
+            'Followers',
+          ),
+          _buildStatItem(
+            (_userProfile?['followingCount'] ?? 0).toString(),
+            'Following',
+          ),
+        ],
       ),
     );
   }
@@ -492,7 +615,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: AppTheme.surfaceWhite,
+            color: Colors.black87,
           ),
         ),
         const SizedBox(height: 2),
@@ -500,7 +623,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           label,
           style: TextStyle(
             fontSize: 13,
-            color: AppTheme.surfaceWhite.withOpacity(0.9),
+            color: Colors.grey[600],
           ),
         ),
       ],
@@ -529,12 +652,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Widget _buildTabBar() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        decoration: AppTheme.cardDecoration(),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Row(
             children: [
               Expanded(
@@ -548,41 +667,65 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
                       color: _showRecipes ? AppTheme.primaryDarkGreen : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.restaurant_menu,
-                          size: 20,
-                          color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Recipes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: _showRecipes ? FontWeight.bold : FontWeight.w500,
-                            color: _showRecipes ? AppTheme.surfaceWhite : AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
+                      width: 2,
                     ),
                   ),
                 ),
+                child: Text(
+                          'Recipes',
+                          style: TextStyle(
+                            fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: _showRecipes ? AppTheme.primaryDarkGreen : Colors.grey[600],
+                          ),
+                  textAlign: TextAlign.center,
+                        ),
+                    ),
+                  ),
+                ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showRecipes = false;
+                });
+                HapticFeedback.selectionClick();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: !_showRecipes ? AppTheme.primaryDarkGreen : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'About',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: !_showRecipes ? AppTheme.primaryDarkGreen : Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildRecipesList() {
+  Widget _buildRecipesSection() {
+    if (_showRecipes) {
     if (_isLoadingRecipes) {
-      return const SliverFillRemaining(
+        return const Padding(
+          padding: EdgeInsets.all(40),
         child: Center(
           child: CircularProgressIndicator(color: AppTheme.primaryDarkGreen),
         ),
@@ -590,7 +733,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
 
     if (_userRecipes.isEmpty) {
-      return SliverFillRemaining(
+        return Padding(
+          padding: const EdgeInsets.all(40),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -598,7 +742,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               Icon(
                 Icons.restaurant_menu,
                 size: 64,
-                color: AppTheme.textSecondary.withOpacity(0.5),
+                  color: Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               const Text(
@@ -606,7 +750,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
+                    color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 8),
@@ -614,7 +758,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                 'This user hasn\'t shared any recipes',
                 style: TextStyle(
                   fontSize: 16,
-                  color: AppTheme.textSecondary.withOpacity(0.7),
+                    color: Colors.grey[600],
                 ),
               ),
             ],
@@ -623,23 +767,107 @@ class _UserProfilePageState extends State<UserProfilePage> {
       );
     }
 
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverGrid(
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: 0.75,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
+          itemCount: _userRecipes.length,
+          itemBuilder: (context, index) {
             return _buildRecipeCard(_userRecipes[index]);
           },
-          childCount: _userRecipes.length,
         ),
-      ),
-    );
+      );
+    } else {
+      // About tab content
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'About',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_userProfile?['bio']?.toString().isNotEmpty == true)
+              Text(
+                _userProfile!['bio'],
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              )
+            else
+              Text(
+                'No bio available',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            const SizedBox(height: 24),
+            const Text(
+              'Location',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on,
+                  size: 20,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _userProfile?['location']?.toString().isNotEmpty == true
+                      ? _userProfile!['location']
+                      : 'Location not specified',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Joined',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _formatJoinDate(_userProfile?['createdAt']),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
@@ -658,7 +886,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
         );
       },
       child: Container(
-        decoration: AppTheme.cardDecoration(elevation: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -689,7 +927,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                               child: Icon(
                                 recipeIcon,
                                 size: 40,
-                                color: AppTheme.surfaceWhite.withOpacity(0.8),
+                                color: Colors.white.withOpacity(0.8),
                               ),
                             ),
                           );
@@ -707,7 +945,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           child: Icon(
                             recipeIcon,
                             size: 40,
-                            color: AppTheme.surfaceWhite.withOpacity(0.8),
+                            color: Colors.white.withOpacity(0.8),
                           ),
                         ),
                       ),
@@ -722,55 +960,74 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    // Recipe type and name
+                    Row(
+                      children: [
+                        Icon(
+                          recipeIcon,
+                          size: 16,
+                          color: AppTheme.primaryDarkGreen,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
                       recipe['name'] ?? 'Untitled',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                              color: Colors.black87,
                         height: 1.2,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, size: 11, color: AppTheme.textSecondary),
-                        const SizedBox(width: 3),
-                        Text(
-                          recipe['time'] ?? '30 mins',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
-                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
+                    
+                    // Recipe title
+                        Text(
+                      '${recipe['name'] ?? 'Untitled'} (Family Recipe)',
+                          style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const Spacer(),
+                    
+                    // Time and likes
                     Row(
                       children: [
-                        Icon(Icons.favorite, size: 13, color: Colors.red),
-                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
                         Text(
-                          recipe['likes']?.toString() ?? '0',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
+                          recipe['time'] ?? '45 min',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
                         ),
                         const Spacer(),
-                        GestureDetector(
-                          onTap: () => _toggleBookmark(
-                            recipe['id'],
-                            recipe['isBookmarked'] ?? false,
-                          ),
-                          child: Icon(
-                            recipe['isBookmarked'] == true ? Icons.bookmark : Icons.bookmark_border,
-                            size: 18,
-                            color: recipe['isBookmarked'] == true
-                                ? AppTheme.primaryDarkGreen
-                                : AppTheme.textSecondary,
+                        Icon(
+                          Icons.favorite_border,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          recipe['likes']?.toString() ?? '324',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
                         ),
                       ],

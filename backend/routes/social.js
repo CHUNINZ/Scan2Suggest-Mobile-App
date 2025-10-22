@@ -43,29 +43,10 @@ router.post('/follow/:id', auth, async (req, res) => {
       currentUser.following.push(targetUserId);
       targetUser.followers.push(currentUserId);
 
-      // Create notification
-      const notification = new Notification({
-        recipient: targetUserId,
-        sender: currentUserId,
-        type: 'follow',
-        title: 'New Follower',
-        message: `${currentUser.name} started following you`
-      });
-      await notification.save();
-
-      // Send real-time notification
+      // Send notification
+      const NotificationService = require('../services/notificationService');
       const io = req.app.get('io');
-      io.to(`user_${targetUserId}`).emit('notification', {
-        type: 'follow',
-        title: 'New Follower',
-        message: `${currentUser.name} started following you`,
-        sender: {
-          _id: currentUser._id,
-          name: currentUser.name,
-          profileImage: currentUser.profileImage
-        },
-        createdAt: new Date()
-      });
+      await NotificationService.sendFollowNotification(targetUser, currentUser, io);
     }
 
     await currentUser.save();
@@ -98,7 +79,7 @@ router.get('/followers/:id', async (req, res) => {
     const user = await User.findById(req.params.id)
       .populate({
         path: 'followers',
-        select: 'name profileImage bio stats',
+        select: 'name profileImage bio stats followers following',
         options: {
           skip: skip,
           limit: parseInt(limit),
@@ -145,7 +126,7 @@ router.get('/following/:id', async (req, res) => {
     const user = await User.findById(req.params.id)
       .populate({
         path: 'following',
-        select: 'name profileImage bio stats',
+        select: 'name profileImage bio stats followers following',
         options: {
           skip: skip,
           limit: parseInt(limit),
@@ -306,11 +287,10 @@ router.get('/discover', auth, async (req, res) => {
       _id: { $nin: followingIds },
       isActive: true
     })
-      .select('name profileImage bio stats')
+      .select('name profileImage bio stats followers following')
       .sort({ 
         'stats.totalLikes': -1,
-        'stats.recipesCreated': -1,
-        'stats.followersCount': -1
+        'stats.recipesCreated': -1
       })
       .skip(skip)
       .limit(parseInt(limit));
@@ -457,30 +437,9 @@ router.post('/share/:recipeId', auth, [
 
     // Send notification to recipe creator if not sharing own recipe
     if (recipe.creator._id.toString() !== req.user._id.toString()) {
-      const notification = new Notification({
-        recipient: recipe.creator._id,
-        sender: req.user._id,
-        type: 'share',
-        title: 'Recipe Shared',
-        message: `${req.user.name} shared your recipe "${recipe.title}"`,
-        relatedRecipe: recipe._id
-      });
-      await notification.save();
-
-      // Send real-time notification
+      const NotificationService = require('../services/notificationService');
       const io = req.app.get('io');
-      io.to(`user_${recipe.creator._id}`).emit('notification', {
-        type: 'share',
-        title: 'Recipe Shared',
-        message: `${req.user.name} shared your recipe "${recipe.title}"`,
-        data: { recipeId: recipe._id },
-        sender: {
-          _id: req.user._id,
-          name: req.user.name,
-          profileImage: req.user.profileImage
-        },
-        createdAt: new Date()
-      });
+      await NotificationService.sendShareNotification(recipe, req.user, platform || 'general', io);
     }
 
     res.json({

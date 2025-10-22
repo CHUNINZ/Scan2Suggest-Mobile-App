@@ -3,23 +3,32 @@ class ApiConfig {
   // ========================================
   // 🔧 CHANGE THIS IP ADDRESS WHEN SWITCHING WIFI NETWORKS
   // ========================================
-  static const String BACKEND_IP = '192.168.0.105'; // <-- UPDATE THIS IP ONLY
+  static const String BACKEND_IP = '10.196.73.221'; // <-- UPDATE THIS IP ONLY
   static const String BACKEND_PORT = '3000';
   
-  // Primary backend URL (constructed from IP above)
-  static String get primaryBackendUrl => 'http://$BACKEND_IP:$BACKEND_PORT/api';
+  // ⚠️ DEVICE TYPE SELECTION:
+  // Uncomment ONE of these based on your testing device:
+  static const bool IS_ANDROID_EMULATOR = false;  // Set to true if using Android Emulator
+  static const bool IS_IOS_SIMULATOR = false;     // Set to true if using iOS Simulator
+  static const bool IS_REAL_DEVICE = true;        // Set to true if using real phone
+  
+  // Primary backend URL (automatically selected based on device type)
+  static String get primaryBackendUrl {
+    if (IS_ANDROID_EMULATOR) {
+      return 'http://10.0.2.2:$BACKEND_PORT/api'; // Android emulator host
+    } else if (IS_IOS_SIMULATOR) {
+      return 'http://localhost:$BACKEND_PORT/api'; // iOS simulator
+    } else {
+      return 'http://$BACKEND_IP:$BACKEND_PORT/api'; // Real device
+    }
+  }
   
   // Multiple possible server addresses - the app will try each one
   static List<String> get possibleBaseUrls => [
-    primaryBackendUrl, // Primary IP from above
-    'http://10.0.2.2:$BACKEND_PORT/api', // Android emulator host
-    'http://localhost:$BACKEND_PORT/api', // iOS simulator
-    'http://192.168.0.105:$BACKEND_PORT/api', // Alternative IP
-    'http://192.168.194.169:$BACKEND_PORT/api', // Device subnet with common host
-    'http://192.168.192.39:$BACKEND_PORT/api', // Device subnet range
-    'http://192.168.192.105:$BACKEND_PORT/api', // Device subnet range
-    'http://192.168.0.105:$BACKEND_PORT/api',  // Previous WiFi
-    'http://192.168.1.105:$BACKEND_PORT/api',  // Common router IP range
+    primaryBackendUrl, // Primary URL based on device type above
+    'http://$BACKEND_IP:$BACKEND_PORT/api', // Your computer's IP
+    'http://10.0.2.2:$BACKEND_PORT/api', // Android emulator fallback
+    'http://localhost:$BACKEND_PORT/api', // iOS simulator fallback
   ];
   
   // Current working base URL (will be set after connection test)
@@ -65,13 +74,28 @@ class ApiConfig {
   }
   
   // ========================================
-  // 📝 INSTRUCTIONS FOR CHANGING WIFI NETWORKS:
+  // 📝 SETUP INSTRUCTIONS:
   // ========================================
-  // 1. Find your backend server's new IP address
-  // 2. Update the BACKEND_IP constant above (line 6)
-  // 3. Save this file
-  // 4. Restart the app
   // 
-  // That's it! All API calls will automatically use the new IP address.
+  // FOR REAL DEVICE (Phone/Tablet):
+  // 1. Make sure your phone and computer are on the SAME WiFi network
+  // 2. Find your computer's IP: Open terminal and run: ifconfig | grep "inet "
+  // 3. Update BACKEND_IP above with your computer's IP
+  // 4. Set IS_REAL_DEVICE = true (and others to false)
+  // 5. Restart the app completely (stop and rebuild)
+  //
+  // FOR ANDROID EMULATOR:
+  // 1. Set IS_ANDROID_EMULATOR = true (and others to false)
+  // 2. Restart the app
+  //
+  // FOR iOS SIMULATOR:
+  // 1. Set IS_IOS_SIMULATOR = true (and others to false)
+  // 2. Restart the app
+  //
+  // ⚠️ TROUBLESHOOTING:
+  // - If you get "Connection refused", make sure backend is running: 
+  //   cd backend && npm start
+  // - Test backend: curl http://YOUR_IP:3000/api/health
+  // - Uninstall and reinstall the app if config changes don't work
   // ========================================
 }

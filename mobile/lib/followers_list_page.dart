@@ -63,6 +63,9 @@ class _FollowersListPageState extends State<FollowersListPage> {
           ? await ApiService.getFollowers(widget.userId, page: 1, limit: 20)
           : await ApiService.getFollowing(widget.userId, page: 1, limit: 20);
 
+      print('🔍 FollowersList - API Response: $response');
+      print('🔍 FollowersList - Users list: ${response[widget.isFollowers ? 'followers' : 'following']}');
+
       if (response['success'] == true && mounted) {
         final users = response[widget.isFollowers ? 'followers' : 'following'] as List? ?? [];
         final pagination = response['pagination'] as Map<String, dynamic>? ?? {};
@@ -120,16 +123,26 @@ class _FollowersListPageState extends State<FollowersListPage> {
   }
 
   Map<String, dynamic> _transformUser(dynamic user) {
-    return {
+    print('🔍 FollowersList - Raw user data: $user');
+    print('🔍 FollowersList - User stats: ${user['stats']}');
+    print('🔍 FollowersList - Followers count from root: ${user['followersCount']}');
+    print('🔍 FollowersList - Following count from root: ${user['followingCount']}');
+    print('🔍 FollowersList - Followers count from stats: ${user['stats']?['followersCount']}');
+    print('🔍 FollowersList - Following count from stats: ${user['stats']?['followingCount']}');
+    
+    final transformedUser = {
       'id': user['_id'] ?? user['id'],
       'name': user['name'] ?? 'Unknown User',
       'profileImage': user['profileImage'],
       'bio': user['bio'] ?? '',
       'stats': user['stats'],
       'recipesCount': user['stats']?['recipesCreated'] ?? 0,
-      'followersCount': user['stats']?['followersCount'] ?? 0,
-      'followingCount': user['stats']?['followingCount'] ?? 0,
+      'followersCount': user['followersCount'] ?? 0,  // Get from root level, not stats
+      'followingCount': user['followingCount'] ?? 0,  // Get from root level, not stats
     };
+    
+    print('🔍 FollowersList - Transformed user: $transformedUser');
+    return transformedUser;
   }
 
   String? _getFullImageUrl(dynamic image) {
@@ -158,6 +171,7 @@ class _FollowersListPageState extends State<FollowersListPage> {
         builder: (context) => UserProfilePage(
           userId: user['id'].toString(),
           userName: user['name'],
+          preloadedUserData: user, // Pass the preloaded user data with stats
         ),
       ),
     );

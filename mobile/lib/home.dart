@@ -373,7 +373,8 @@ class _HomePageState extends State<HomePage>
               'serves': recipe['servings'] ?? 1,
               'description': recipe['description'] ?? '',
               'likesCount': recipe['likesCount'] ?? 0,
-              'ratingsCount': recipe['ratingsCount'] ?? 0,
+              'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
+              'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
               'image': _getFullImageUrl(
                 recipe['images'] != null && (recipe['images'] as List).isNotEmpty 
                     ? recipe['images'][0] 
@@ -587,21 +588,70 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildLoadingState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(
-            color: AppTheme.primaryDarkGreen,
-            strokeWidth: 3,
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primaryDarkGreen.withOpacity(0.1),
+              border: Border.all(color: AppTheme.primaryDarkGreen.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryDarkGreen.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                const Center(
+                  child: Icon(
+                    Icons.restaurant,
+                    color: AppTheme.primaryDarkGreen,
+                    size: 35,
+                  ),
+                ),
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryDarkGreen,
+                    strokeWidth: 4,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 24),
+          
+          // AI Processing text with animation
+          AnimatedBuilder(
+            animation: _fadeAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: (0.7 + (_fadeAnimation.value * 0.3)).clamp(0.0, 1.0),
+                child: const Text(
+                  '🤖 Loading Recipes...',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          const SizedBox(height: 12),
+          
           Text(
-            'Loading recipes...',
+            'Fetching delicious recipes for you',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 14,
               color: AppTheme.textSecondary,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
