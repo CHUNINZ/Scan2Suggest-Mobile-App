@@ -772,6 +772,50 @@ class ApiService {
     return _handleResponse(response);
   }
   
+  // Comment APIs
+  static Future<Map<String, dynamic>> addComment({
+    required String recipeId,
+    required String text,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comment'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'text': text,
+      }),
+    );
+    
+    return _handleResponse(response);
+  }
+  
+  static Future<Map<String, dynamic>> getComments({
+    required String recipeId,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comments').replace(
+      queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+    
+    final response = await http.get(uri, headers: _getHeaders());
+    return _handleResponse(response);
+  }
+  
+  static Future<Map<String, dynamic>> deleteComment({
+    required String recipeId,
+    required String commentId,
+  }) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comment/$commentId'),
+      headers: _getHeaders(),
+    );
+    
+    return _handleResponse(response);
+  }
+  
   // Scanning APIs
   static Future<Map<String, dynamic>> analyzeImage({
     required File imageFile,
@@ -1184,6 +1228,26 @@ class ApiService {
     };
     
     final uri = Uri.parse('${ApiConfig.safeBaseUrl}/social/trending').replace(
+      queryParameters: queryParams,
+    );
+    
+    final response = await http.get(uri, headers: _getHeaders(includeAuth: false));
+    return _handleResponse(response);
+  }
+  
+  // User Search API
+  static Future<Map<String, dynamic>> searchUsers({
+    required String query,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final queryParams = {
+      'q': query,
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    
+    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/users/search').replace(
       queryParameters: queryParams,
     );
     

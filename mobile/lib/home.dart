@@ -373,7 +373,8 @@ class _HomePageState extends State<HomePage>
               'serves': recipe['servings'] ?? 1,
               'description': recipe['description'] ?? '',
               'likesCount': recipe['likesCount'] ?? 0,
-              'ratingsCount': recipe['ratingsCount'] ?? 0,
+              'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
+              'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
               'image': _getFullImageUrl(
                 recipe['images'] != null && (recipe['images'] as List).isNotEmpty 
                     ? recipe['images'][0] 

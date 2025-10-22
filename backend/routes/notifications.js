@@ -202,7 +202,7 @@ router.post('/send', auth, [
     .isMongoId()
     .withMessage('Valid recipient ID is required'),
   body('type')
-    .isIn(['like', 'comment', 'follow', 'recipe', 'system', 'share'])
+    .isIn(['like', 'comment', 'follow', 'rating', 'bookmark', 'share', 'recipe', 'system'])
     .withMessage('Invalid notification type'),
   body('title')
     .trim()

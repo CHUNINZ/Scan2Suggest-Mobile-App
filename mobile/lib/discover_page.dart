@@ -151,6 +151,7 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
         builder: (context) => UserProfilePage(
           userId: user['id'].toString(),
           userName: user['name'],
+          preloadedUserData: user, // Pass the preloaded user data with stats
         ),
       ),
     );

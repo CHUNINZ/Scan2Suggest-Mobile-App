@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 
 /// Comprehensive dialog helper class for consistent UI across the app
 class DialogHelper {
@@ -269,14 +270,14 @@ class DialogHelper {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.info, color: Colors.blue, size: 28),
+            Icon(Icons.info, color: AppTheme.primaryDarkGreen, size: 28),
             const SizedBox(width: 8),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.blue,
+                color: AppTheme.primaryDarkGreen,
               ),
             ),
           ],
@@ -289,7 +290,7 @@ class DialogHelper {
           TextButton(
             onPressed: onPressed ?? () => Navigator.pop(context),
             style: TextButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: AppTheme.primaryDarkGreen,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),

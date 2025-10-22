@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'recipe_details_page.dart';
 import 'user_profile_page.dart';
+import 'search_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
@@ -134,6 +135,14 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       return inst.toString();
     }).toList();
     
+    // Debug: Log rating data
+    print('🔍 Recipe: ${recipe['title']}');
+    print('   averageRating: ${recipe['averageRating']}');
+    print('   ratingsCount: ${recipe['ratingsCount']}');
+    print('   ratings array length: ${(recipe['ratings'] as List?)?.length}');
+    print('   commentsCount: ${recipe['commentsCount']}');
+    print('   comments array length: ${(recipe['comments'] as List?)?.length}');
+    
     return {
       'id': recipe['_id'] ?? recipe['id'],
       'name': recipe['title'] ?? 'Untitled',
@@ -148,6 +157,8 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       'steps': instructionSteps,
       'likesCount': recipe['likesCount'] ?? 0,
       'rating': (recipe['averageRating'] ?? 0).toDouble(),
+      'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
+      'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
       'isLiked': recipe['isLiked'] ?? false,
       'isBookmarked': recipe['isBookmarked'] ?? false,
       'createdAt': recipe['createdAt'],
@@ -221,6 +232,16 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
         ),
       );
     }
+  }
+
+  void _openSearch() {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SearchPage(),
+      ),
+    );
   }
 
   Future<void> _toggleLike(Map<String, dynamic> recipe) async {
@@ -334,7 +355,12 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
     
     return Scaffold(
       backgroundColor: AppTheme.backgroundOffWhite,
-      body: _buildBody(),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(child: _buildBody()),
+        ],
+      ),
     );
   }
 
@@ -454,6 +480,63 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
           }
           return _buildFeedCard(_recipes[index]);
         },
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceWhite,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: GestureDetector(
+          onTap: _openSearch,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.secondaryLightGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.textSecondary.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search,
+                  color: AppTheme.textSecondary.withOpacity(0.6),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Search recipes and users...',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary.withOpacity(0.6),
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.tune,
+                  color: AppTheme.textSecondary.withOpacity(0.4),
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -649,6 +732,38 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                       ),
                     ),
                     const SizedBox(width: 20),
+                    // Comments indicator
+                    Icon(Icons.comment_outlined, size: 20, color: AppTheme.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${recipe['commentsCount'] ?? 0}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    // Rating indicator - always show
+                    Icon(
+                      Icons.star,
+                      size: 20,
+                      color: (recipe['rating'] ?? 0) > 0 ? Colors.amber : AppTheme.textSecondary.withOpacity(0.3),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      (recipe['rating'] ?? 0) > 0
+                          ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)} (${recipe['ratingsCount'] ?? 0})'
+                          : 'No ratings',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: (recipe['rating'] ?? 0) > 0 
+                            ? AppTheme.textSecondary 
+                            : AppTheme.textSecondary.withOpacity(0.5),
+                      ),
+                    ),
+                    const Spacer(),
                     // Bookmark button
                     IconButton(
                       onPressed: () => _toggleBookmark(recipe),
@@ -659,17 +774,6 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 20),
-                    // Time info
-                    Icon(Icons.access_time, size: 16, color: AppTheme.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      recipe['time'] ?? '30 mins',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                      ),
                     ),
                   ],
                 ),
