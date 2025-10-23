@@ -30,8 +30,15 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
   @override
   void initState() {
     super.initState();
-    _loadFeed();
+    _initializeAndLoadFeed();
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _initializeAndLoadFeed() async {
+    // Initialize token first
+    await ApiService.initializeToken();
+    // Then load the feed
+    await _loadFeed();
   }
 
   @override
@@ -56,6 +63,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
         _currentPage = 1;
       });
 
+      // Ensure token is initialized before making the request
+      await ApiService.initializeToken();
+      
       final response = await ApiService.getSocialFeed(page: 1, limit: 10);
 
       if (response['success'] == true && mounted) {
@@ -72,10 +82,25 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       }
     } catch (e) {
       if (mounted) {
+        // Handle specific error cases
+        String errorMessage = e.toString().replaceAll('Exception: ', '');
+        
+          if (errorMessage.contains('No token provided') || 
+              errorMessage.contains('access denied') ||
+              errorMessage.contains('401')) {
+            errorMessage = 'Please sign in to view the social feed. Tap to go to login.';
+            // Clear any invalid token
+            await ApiService.clearToken();
+          } else if (errorMessage.contains('Too many requests')) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (errorMessage.contains('Failed to parse server response')) {
+          errorMessage = 'Server response error. Please try again.';
+        }
+        
         setState(() {
           _isLoading = false;
           _hasError = true;
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = errorMessage;
         });
       }
     }
@@ -377,10 +402,14 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            Icon(
+              _errorMessage.contains('Please sign in') ? Icons.lock_outline : Icons.error_outline, 
+              size: 64, 
+              color: _errorMessage.contains('Please sign in') ? Colors.orange.shade300 : Colors.red.shade300
+            ),
             const SizedBox(height: 16),
             Text(
-              'Error loading feed',
+              _errorMessage.contains('Please sign in') ? 'Authentication Required' : 'Error loading feed',
               style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -393,16 +422,41 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _loadFeed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryDarkGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _loadFeed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryDarkGreen,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Retry', style: TextStyle(color: AppTheme.surfaceWhite)),
                 ),
-              ),
-              child: const Text('Retry', style: TextStyle(color: AppTheme.surfaceWhite)),
+                if (_errorMessage.contains('Please sign in')) ...[
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/signin',
+                        (route) => false,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Sign In', style: TextStyle(color: AppTheme.surfaceWhite)),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

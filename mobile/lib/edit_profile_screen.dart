@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
@@ -140,22 +141,27 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildPhotoOption(
-                  icon: Icons.camera_alt,
-                  label: 'Camera',
-                  color: Colors.blue,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImageFromCamera();
-                  },
-                ),
+                if (!kIsWeb) // Hide camera option on web
+                  _buildPhotoOption(
+                    icon: Icons.camera_alt,
+                    label: 'Camera',
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImageFromCamera();
+                    },
+                  ),
                 _buildPhotoOption(
                   icon: Icons.photo_library,
-                  label: 'Gallery',
+                  label: kIsWeb ? 'Choose File' : 'Gallery',
                   color: Colors.green,
                   onTap: () {
                     Navigator.pop(context);
-                    _pickImageFromGallery();
+                    if (kIsWeb) {
+                      _pickImageFromWeb();
+                    } else {
+                      _pickImageFromGallery();
+                    }
                   },
                 ),
                 _buildPhotoOption(
@@ -193,16 +199,21 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       if (image != null) {
         final file = File(image.path);
         
-        // Validate file size (max 5MB)
-        final fileSize = await file.length();
-        if (fileSize > 5 * 1024 * 1024) {
-          _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
-          return;
-        }
-        
-        // Validate file exists and is readable
-        if (!await file.exists()) {
-          _showSnackBar('Selected image file is not accessible.');
+        // Validate file size (max 5MB) and existence
+        try {
+          final fileSize = await file.length();
+          if (fileSize > 5 * 1024 * 1024) {
+            _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
+            return;
+          }
+          
+          // Validate file exists and is readable
+          if (!await file.exists()) {
+            _showSnackBar('Selected image file is not accessible.');
+            return;
+          }
+        } catch (e) {
+          _showSnackBar('Error validating image file: ${e.toString()}');
           return;
         }
         
@@ -212,37 +223,107 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           _hasUnsavedChanges = true;
         });
         
-        _showSnackBar('Image selected successfully!', isSuccess: true);
+        // Upload immediately after selection
+        await _uploadProfileImageImmediately(file);
       }
     } catch (e) {
-      _showSnackBar('Error accessing camera: ${e.toString()}');
+      String errorMessage = 'Error accessing camera';
+      if (kIsWeb) {
+        errorMessage = 'Camera not available on web. Please use gallery instead.';
+      } else {
+        errorMessage = 'Error accessing camera: ${e.toString()}';
+      }
+      _showSnackBar(errorMessage);
     }
   }
   
   Future<void> _pickImageFromGallery() async {
     try {
+      // For web, use a more compatible approach
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
+        requestFullMetadata: false, // This helps with web compatibility
       );
       
       if (image != null) {
         final file = File(image.path);
         
-        // Validate file size (max 5MB)
-        final fileSize = await file.length();
-        if (fileSize > 5 * 1024 * 1024) {
-          _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
-          return;
+        // For web, we need to handle file validation differently
+        if (kIsWeb) {
+          // On web, we can't always check file size before upload
+          // The server will handle size validation
+          setState(() {
+            _newProfileImage = file;
+            _imageChanged = true;
+            _hasUnsavedChanges = true;
+          });
+          
+          // Upload immediately after selection
+          await _uploadProfileImageImmediately(file);
+        } else {
+          // Mobile validation
+          try {
+            final fileSize = await file.length();
+            if (fileSize > 5 * 1024 * 1024) {
+              _showSnackBar('Image is too large. Please select an image smaller than 5MB.');
+              return;
+            }
+            
+            if (!await file.exists()) {
+              _showSnackBar('Selected image file is not accessible.');
+              return;
+            }
+          } catch (e) {
+            _showSnackBar('Error validating image file: ${e.toString()}');
+            return;
+          }
+          
+          setState(() {
+            _newProfileImage = file;
+            _imageChanged = true;
+            _hasUnsavedChanges = true;
+          });
+          
+          // Upload immediately after selection
+          await _uploadProfileImageImmediately(file);
         }
-        
-        // Validate file exists and is readable
-        if (!await file.exists()) {
-          _showSnackBar('Selected image file is not accessible.');
+      }
+    } catch (e) {
+      String errorMessage = 'Error accessing gallery';
+      if (kIsWeb) {
+        if (e.toString().contains('User cancelled')) {
+          // User cancelled, don't show error
           return;
+        } else if (e.toString().contains('file_picker')) {
+          errorMessage = 'File picker not supported. Please try refreshing the page.';
+        } else {
+          errorMessage = 'Error accessing file picker. Please try again or refresh the page.';
         }
+      } else if (e.toString().contains('unsupported namespace')) {
+        errorMessage = 'Gallery access not supported. Please try using camera instead.';
+      } else {
+        errorMessage = 'Error accessing gallery: ${e.toString()}';
+      }
+      _showSnackBar(errorMessage);
+    }
+  }
+
+  Future<void> _pickImageFromWeb() async {
+    try {
+      // Web-specific image picker with better error handling
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+        requestFullMetadata: false,
+      );
+      
+      if (image != null) {
+        final file = File(image.path);
         
         setState(() {
           _newProfileImage = file;
@@ -250,10 +331,96 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           _hasUnsavedChanges = true;
         });
         
-        _showSnackBar('Image selected successfully!', isSuccess: true);
+        // Upload immediately after selection
+        await _uploadProfileImageImmediately(file);
       }
     } catch (e) {
-      _showSnackBar('Error accessing gallery: ${e.toString()}');
+      String errorMessage = 'Unable to access file picker';
+      
+      if (e.toString().contains('User cancelled') || e.toString().contains('canceled')) {
+        // User cancelled, don't show error
+        return;
+      } else if (e.toString().contains('NotAllowedError')) {
+        errorMessage = 'File access denied. Please allow file access and try again.';
+      } else if (e.toString().contains('NotFoundError')) {
+        errorMessage = 'File picker not found. Please refresh the page and try again.';
+      } else if (e.toString().contains('SecurityError')) {
+        errorMessage = 'Security error. Please try refreshing the page.';
+      } else if (e.toString().contains('file_picker')) {
+        errorMessage = 'File picker not supported. Please try refreshing the page or use a different browser.';
+      } else {
+        errorMessage = 'File picker error. Please try refreshing the page.';
+      }
+      
+      _showSnackBar(errorMessage);
+    }
+  }
+
+  Future<void> _uploadProfileImageImmediately(File imageFile) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      _showSnackBar('Uploading image...', isSuccess: true);
+      
+      final uploadResponse = await ApiService.uploadProfileImage(imageFile);
+      
+      if (uploadResponse['success'] == true) {
+        // Construct full URL from relative path
+        String imageUrl = uploadResponse['imageUrl'];
+        if (imageUrl.startsWith('/')) {
+          // Get base URL from API config
+          final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
+          imageUrl = '$baseUrl$imageUrl';
+        }
+        
+        setState(() {
+          _profileImagePath = imageUrl;
+          _imageChanged = false; // Already uploaded
+          _hasUnsavedChanges = false; // No need to save again
+        });
+        
+        // Update the parent widget immediately
+        final updatedProfile = {
+          'name': _nameController.text.trim(),
+          'bio': _bioController.text.trim(),
+          'location': _locationController.text.trim(),
+          'profileImageUrl': imageUrl,
+        };
+        widget.onProfileUpdated(updatedProfile);
+        
+        _showSnackBar('Profile photo updated successfully!', isSuccess: true);
+      } else {
+        throw Exception(uploadResponse['message'] ?? 'Failed to upload image');
+      }
+    } catch (uploadError) {
+      String errorMessage = 'Failed to upload image';
+      
+      if (uploadError.toString().contains('SocketException')) {
+        errorMessage = 'Network connection failed. Please check your internet connection.';
+      } else if (uploadError.toString().contains('TimeoutException')) {
+        errorMessage = 'Upload timed out. Please try again.';
+      } else if (uploadError.toString().contains('FormatException')) {
+        errorMessage = 'Invalid image format. Please select a valid image file.';
+      } else if (uploadError.toString().contains('FileSystemException')) {
+        errorMessage = 'Image file not accessible. Please try selecting the image again.';
+      } else {
+        errorMessage = 'Upload failed: ${uploadError.toString()}';
+      }
+      
+      _showSnackBar(errorMessage);
+      
+      // Reset the image selection on error
+      setState(() {
+        _newProfileImage = null;
+        _imageChanged = false;
+        _hasUnsavedChanges = false;
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -892,73 +1059,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 ),
               ),
               
-              const SizedBox(height: 32),
-              
-              // Additional Information Section
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceWhite,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.info_outline,
-                            color: Colors.blue,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Profile Tips',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    _buildTipItem(
-                      icon: Icons.lightbulb_outline,
-                      text: 'Add a friendly bio to connect with other food lovers',
-                      color: Colors.amber,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildTipItem(
-                      icon: Icons.location_on_outlined,
-                      text: 'Share your location to discover local recipes',
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildTipItem(
-                      icon: Icons.photo_camera_outlined,
-                      text: 'A profile picture helps build trust in the community',
-                      color: Colors.blue,
-                    ),
-                  ],
-                ),
-              ),
-              
               const SizedBox(height: 40),
               
               // Save Button
@@ -1005,31 +1105,4 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildTipItem({
-    required IconData icon,
-    required String text,
-    required Color color,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          color: color,
-          size: 18,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSecondary,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

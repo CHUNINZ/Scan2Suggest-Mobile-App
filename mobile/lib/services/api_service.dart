@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,27 +33,10 @@ class ApiService {
   // Test connection to backend with automatic network discovery
   static Future<bool> testConnection() async {
     if (ApiConfig.enableLogging) {
-      print('🔍 Starting network discovery...');
+      print('🔍 Testing backend connection...');
     }
     
-    // First try automatic network discovery
-    try {
-      String? discoveredUrl = await NetworkDiscovery.discoverBackendUrl();
-      
-      if (discoveredUrl != null) {
-        ApiConfig.setWorkingBaseUrl(discoveredUrl);
-        if (ApiConfig.enableLogging) {
-          print('✅ Auto-discovered backend at: $discoveredUrl');
-        }
-        return true;
-      }
-    } catch (e) {
-      if (ApiConfig.enableLogging) {
-        print('⚠️ Network discovery failed, trying predefined URLs: $e');
-      }
-    }
-    
-    // Fallback to predefined URLs
+    // Try predefined URLs first (faster and more reliable)
     for (String testUrl in ApiConfig.possibleBaseUrls) {
       try {
         if (ApiConfig.enableLogging) {
@@ -70,6 +54,9 @@ class ApiService {
         
         if (response.statusCode == 200) {
           ApiConfig.setWorkingBaseUrl(testUrl);
+          if (ApiConfig.enableLogging) {
+            print('✅ Backend connection successful: $testUrl');
+          }
           return true;
         }
         
@@ -78,6 +65,27 @@ class ApiService {
           print('❌ Connection test failed for $testUrl: $e');
         }
         continue;
+      }
+    }
+    
+    // Only try network discovery if predefined URLs fail
+    if (ApiConfig.enableLogging) {
+      print('⚠️ Predefined URLs failed, trying network discovery...');
+    }
+    
+    try {
+      String? discoveredUrl = await NetworkDiscovery.discoverBackendUrl();
+      
+      if (discoveredUrl != null) {
+        ApiConfig.setWorkingBaseUrl(discoveredUrl);
+        if (ApiConfig.enableLogging) {
+          print('✅ Auto-discovered backend at: $discoveredUrl');
+        }
+        return true;
+      }
+    } catch (e) {
+      if (ApiConfig.enableLogging) {
+        print('⚠️ Network discovery failed: $e');
       }
     }
     
@@ -153,6 +161,8 @@ class ApiService {
           // Keep original message for incorrect password
         } else if (response.statusCode == 404) {
           // Keep original message for account not found
+        } else if (response.statusCode == 429) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
         } else if (response.statusCode == 500) {
           errorMessage = 'Server error. Please try again later';
         }
@@ -440,12 +450,32 @@ class ApiService {
   }
   
   static Future<Map<String, dynamic>> getCurrentUser() async {
-    final response = await http.get(
-      Uri.parse('${ApiConfig.safeBaseUrl}/auth/me'),
-      headers: _getHeaders(),
-    );
-    
-    return _handleResponse(response);
+    try {
+      // Ensure token is initialized
+      await initializeToken();
+      
+      if (ApiConfig.enableLogging) {
+        print('🔍 Getting current user - Token status: ${_token != null ? "Present" : "Missing"}');
+        print('🔍 API URL: ${ApiConfig.safeBaseUrl}/auth/me');
+      }
+      
+      final response = await http.get(
+        Uri.parse('${ApiConfig.safeBaseUrl}/auth/me'),
+        headers: _getHeaders(),
+      );
+      
+      if (ApiConfig.enableLogging) {
+        print('🔍 Response status: ${response.statusCode}');
+        print('🔍 Response body: ${response.body}');
+      }
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (ApiConfig.enableLogging) {
+        print('❌ Get current user error: $e');
+      }
+      rethrow;
+    }
   }
   
   static Future<Map<String, dynamic>> getLikedRecipes() async {
@@ -522,19 +552,21 @@ class ApiService {
         throw Exception('Cannot connect to server. Please check your internet connection.');
       }
       
-      // Validate file exists
-      if (!await imageFile.exists()) {
-        throw Exception('Image file does not exist');
-      }
-      
-      // Validate file size
-      final fileSize = await imageFile.length();
-      if (fileSize > 5 * 1024 * 1024) {
-        throw Exception('Image file is too large (max 5MB)');
-      }
-      
-      if (fileSize == 0) {
-        throw Exception('Image file is empty');
+      // Validate file exists and size (skip on web due to limitations)
+      int fileSize = 0;
+      if (!kIsWeb) {
+        if (!await imageFile.exists()) {
+          throw Exception('Image file does not exist');
+        }
+        
+        fileSize = await imageFile.length();
+        if (fileSize > 5 * 1024 * 1024) {
+          throw Exception('Image file is too large (max 5MB)');
+        }
+        
+        if (fileSize == 0) {
+          throw Exception('Image file is empty');
+        }
       }
       
       final request = http.MultipartRequest(
@@ -545,17 +577,35 @@ class ApiService {
       request.headers.addAll(_getMultipartHeaders());
       
       // Add image file with proper content type
-      final multipartFile = await http.MultipartFile.fromPath(
-        'profileImage',
-        imageFile.path,
-        contentType: MediaType('image', 'jpeg'), // Default to JPEG, will be overridden by actual file type
-      );
+      http.MultipartFile multipartFile;
+      
+      if (kIsWeb) {
+        // For web, use fromBytes instead of fromPath
+        final bytes = await imageFile.readAsBytes();
+        multipartFile = http.MultipartFile.fromBytes(
+          'profileImage',
+          bytes,
+          filename: 'profile_image.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        );
+      } else {
+        // For mobile, use fromPath
+        multipartFile = await http.MultipartFile.fromPath(
+          'profileImage',
+          imageFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        );
+      }
       
       request.files.add(multipartFile);
       
       if (ApiConfig.enableLogging) {
         print('📤 Uploading profile image: ${imageFile.path}');
-        print('📤 File size: ${fileSize} bytes');
+        if (!kIsWeb) {
+          print('📤 File size: ${fileSize} bytes');
+        } else {
+          print('📤 File size: Unknown (web)');
+        }
         print('📤 Request URL: ${request.url}');
         print('📤 Headers: ${request.headers}');
       }
@@ -607,6 +657,9 @@ class ApiService {
     int page = 1,
     int limit = 10,
   }) async {
+    // Ensure token is initialized
+    await initializeToken();
+    
     final uri = Uri.parse('${ApiConfig.safeBaseUrl}/users/recipes/$userId').replace(
       queryParameters: {
         'page': page.toString(),
@@ -614,7 +667,12 @@ class ApiService {
       },
     );
     
-    final response = await http.get(uri, headers: _getHeaders(includeAuth: false));
+    if (ApiConfig.enableLogging) {
+      print('🔍 Getting user recipes - Token status: ${_token != null ? "Present" : "Missing"}');
+      print('🔍 API URL: $uri');
+    }
+    
+    final response = await http.get(uri, headers: _getHeaders(includeAuth: true));
     return _handleResponse(response);
   }
   
@@ -738,12 +796,32 @@ class ApiService {
   }
   
   static Future<Map<String, dynamic>> likeRecipe(String recipeId) async {
-    final response = await http.post(
-      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/like'),
-      headers: _getHeaders(),
-    );
-    
-    return _handleResponse(response);
+    try {
+      // Ensure token is initialized
+      await initializeToken();
+      
+      if (ApiConfig.enableLogging) {
+        print('🔍 Liking recipe - Token status: ${_token != null ? "Present" : "Missing"}');
+        print('🔍 API URL: ${ApiConfig.safeBaseUrl}/recipes/$recipeId/like');
+      }
+      
+      final response = await http.post(
+        Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/like'),
+        headers: _getHeaders(),
+      );
+      
+      if (ApiConfig.enableLogging) {
+        print('🔍 Like response status: ${response.statusCode}');
+        print('🔍 Like response body: ${response.body}');
+      }
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (ApiConfig.enableLogging) {
+        print('❌ Like recipe error: $e');
+      }
+      rethrow;
+    }
   }
   
   static Future<Map<String, dynamic>> bookmarkRecipe(String recipeId) async {
@@ -777,8 +855,9 @@ class ApiService {
     required String recipeId,
     required String text,
   }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comment');
     final response = await http.post(
-      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comment'),
+      Uri.parse(url),
       headers: _getHeaders(),
       body: json.encode({
         'text': text,
@@ -793,7 +872,8 @@ class ApiService {
     int page = 1,
     int limit = 20,
   }) async {
-    final uri = Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comments').replace(
+    final url = ApiConfig.getUrl('recipes/$recipeId/comments');
+    final uri = Uri.parse(url).replace(
       queryParameters: {
         'page': page.toString(),
         'limit': limit.toString(),
@@ -808,8 +888,73 @@ class ApiService {
     required String recipeId,
     required String commentId,
   }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comment/$commentId');
     final response = await http.delete(
-      Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId/comment/$commentId'),
+      Uri.parse(url),
+      headers: _getHeaders(),
+    );
+    
+    return _handleResponse(response);
+  }
+  
+  // Reply APIs
+  static Future<Map<String, dynamic>> addReply({
+    required String recipeId,
+    required String commentId,
+    required String text,
+  }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comments/$commentId/reply');
+    final response = await http.post(
+      Uri.parse(url),
+      headers: _getHeaders(),
+      body: json.encode({
+        'text': text,
+      }),
+    );
+    
+    return _handleResponse(response);
+  }
+  
+  static Future<Map<String, dynamic>> deleteReply({
+    required String recipeId,
+    required String commentId,
+    required String replyId,
+  }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comments/$commentId/replies/$replyId');
+    final response = await http.delete(
+      Uri.parse(url),
+      headers: _getHeaders(),
+    );
+    
+    return _handleResponse(response);
+  }
+  
+  // Nested Reply APIs
+  static Future<Map<String, dynamic>> addNestedReply({
+    required String recipeId,
+    required String commentId,
+    required String replyId,
+    required String text,
+  }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comments/$commentId/replies/$replyId/reply');
+    final response = await http.post(
+      Uri.parse(url),
+      headers: _getHeaders(),
+      body: json.encode({ 'text': text }),
+    );
+    
+    return _handleResponse(response);
+  }
+  
+  static Future<Map<String, dynamic>> deleteNestedReply({
+    required String recipeId,
+    required String commentId,
+    required String replyId,
+    required String nestedReplyId,
+  }) async {
+    final url = ApiConfig.getUrl('recipes/$recipeId/comments/$commentId/replies/$replyId/nested/$nestedReplyId');
+    final response = await http.delete(
+      Uri.parse(url),
       headers: _getHeaders(),
     );
     
@@ -1203,6 +1348,14 @@ class ApiService {
     int page = 1,
     int limit = 10,
   }) async {
+    // Ensure token is initialized
+    await initializeToken();
+    
+    if (ApiConfig.enableLogging) {
+      print('🔍 Social feed - Token status: ${_token != null ? "Present" : "Missing"}');
+      print('🔍 Social feed - API URL: ${ApiConfig.safeBaseUrl}/social/feed');
+    }
+    
     final queryParams = {
       'page': page.toString(),
       'limit': limit.toString(),
@@ -1212,7 +1365,12 @@ class ApiService {
       queryParameters: queryParams,
     );
     
-    final response = await http.get(uri, headers: _getHeaders());
+    final headers = _getHeaders();
+    if (ApiConfig.enableLogging) {
+      print('🔍 Social feed - Headers: $headers');
+    }
+    
+    final response = await http.get(uri, headers: headers);
     return _handleResponse(response);
   }
   

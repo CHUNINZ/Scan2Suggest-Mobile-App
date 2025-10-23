@@ -130,6 +130,10 @@ const recipeSchema = new mongoose.Schema({
     }
   }],
   comments: [{
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId()
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -140,6 +144,46 @@ const recipeSchema = new mongoose.Schema({
       required: true,
       maxlength: 500
     },
+    replies: [{
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: () => new mongoose.Types.ObjectId()
+      },
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      text: {
+        type: String,
+        required: true,
+        maxlength: 500
+      },
+      replies: [{
+        _id: {
+          type: mongoose.Schema.Types.ObjectId,
+          default: () => new mongoose.Types.ObjectId()
+        },
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        text: {
+          type: String,
+          required: true,
+          maxlength: 500
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     createdAt: {
       type: Date,
       default: Date.now
@@ -214,9 +258,18 @@ recipeSchema.virtual('ratingsCount').get(function() {
   return this.ratings ? this.ratings.length : 0;
 });
 
-// Virtual for comments count
+// Virtual for comments count (including all nested replies)
 recipeSchema.virtual('commentsCount').get(function() {
-  return this.comments ? this.comments.length : 0;
+  if (!this.comments) return 0;
+  const totalComments = this.comments.length;
+  const totalReplies = this.comments.reduce((acc, comment) => {
+    const directReplies = comment.replies ? comment.replies.length : 0;
+    const nestedReplies = comment.replies ? comment.replies.reduce((nestedAcc, reply) => {
+      return nestedAcc + (reply.replies ? reply.replies.length : 0);
+    }, 0) : 0;
+    return acc + directReplies + nestedReplies;
+  }, 0);
+  return totalComments + totalReplies;
 });
 
 // Ensure virtual fields are serialized

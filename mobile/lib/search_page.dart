@@ -236,38 +236,38 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   // Transform recipe data
   Map<String, dynamic> _transformRecipe(dynamic recipe) {
-    final creator = recipe['creator'];
-    final creatorName = creator is Map ? creator['name'] : creator?.toString() ?? 'Unknown';
-    
-    final imagesList = recipe['images'] as List? ?? [];
-    final firstImage = imagesList.isNotEmpty ? imagesList[0] : null;
+          final creator = recipe['creator'];
+          final creatorName = creator is Map ? creator['name'] : creator?.toString() ?? 'Unknown';
+          
+          final imagesList = recipe['images'] as List? ?? [];
+          final firstImage = imagesList.isNotEmpty ? imagesList[0] : null;
     
     final prepTime = recipe['prepTime'] ?? 0;
     final cookTime = recipe['cookTime'] ?? 0;
     final totalTime = prepTime + cookTime;
-    
-    return {
-      'id': recipe['_id'] ?? recipe['id'],
-      'name': recipe['title'] ?? 'Untitled',
-      'creator': creatorName,
-      'type': recipe['category'] ?? 'Food',
+          
+          return {
+            'id': recipe['_id'] ?? recipe['id'],
+            'name': recipe['title'] ?? 'Untitled',
+            'creator': creatorName,
+            'type': recipe['category'] ?? 'Food',
       'time': '${totalTime} mins',
       'duration': totalTime,
-      'tags': recipe['tags'] ?? [],
-      'rating': (recipe['averageRating'] ?? 0).toDouble(),
+            'tags': recipe['tags'] ?? [],
+            'rating': (recipe['averageRating'] ?? 0).toDouble(),
       'ratingsCount': recipe['ratingsCount'] ?? 0,
       'commentsCount': recipe['commentsCount'] ?? 0,
-      'image': firstImage,
-      'description': recipe['description'] ?? '',
-      'ingredients': recipe['ingredients'] ?? [],
-      'steps': recipe['instructions']?.map((inst) {
-        if (inst is String) return inst;
-        if (inst is Map) return inst['instruction'] ?? inst['step'] ?? 'Step';
-        return inst.toString();
-      }).toList() ?? [],
-      'likesCount': recipe['likesCount'] ?? 0,
-      'isLiked': recipe['isLiked'] ?? false,
-      'isBookmarked': recipe['isBookmarked'] ?? false,
+            'image': firstImage,
+            'description': recipe['description'] ?? '',
+            'ingredients': recipe['ingredients'] ?? [],
+            'steps': recipe['instructions']?.map((inst) {
+              if (inst is String) return inst;
+              if (inst is Map) return inst['instruction'] ?? inst['step'] ?? 'Step';
+              return inst.toString();
+            }).toList() ?? [],
+            'likesCount': recipe['likesCount'] ?? 0,
+            'isLiked': recipe['isLiked'] ?? false,
+            'isBookmarked': recipe['isBookmarked'] ?? false,
       'difficulty': recipe['difficulty'] ?? 'Medium',
     };
   }
@@ -462,7 +462,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                                 setModalState(() {
                                   _maxTime = value.toInt();
                                 });
-                                setState(() {
+        setState(() {
                                   _maxTime = value.toInt();
                                 });
                               },
@@ -507,7 +507,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                               setModalState(() {
                                 _difficulty = diff == 'All' ? null : diff;
                               });
-                              setState(() {
+        setState(() {
                                 _difficulty = diff == 'All' ? null : diff;
                               });
                             },
@@ -605,61 +605,61 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         ),
       ),
       body: Column(
-        children: [
-          // Search bar
-          Container(
-            padding: const EdgeInsets.all(16),
+          children: [
+            // Search bar
+            Container(
+              padding: const EdgeInsets.all(16),
             color: AppTheme.surfaceWhite,
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (_searchController.text == value) {
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (_searchController.text == value) {
                           _performSearch(value);
-                        }
-                      });
-                    },
+                    }
+                  });
+                },
                     onSubmitted: _performSearch,
-                    decoration: InputDecoration(
+                decoration: InputDecoration(
                       hintText: 'Search recipes or users...',
-                      prefixIcon: _isSearching
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                  prefixIcon: _isSearching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
                                   color: AppTheme.primaryDarkGreen,
-                                ),
-                              ),
-                            )
+                            ),
+                          ),
+                        )
                           : const Icon(Icons.search, color: AppTheme.primaryDarkGreen),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
                                 _performSearch('');
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: AppTheme.textSecondary.withOpacity(0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppTheme.primaryDarkGreen, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: AppTheme.secondaryLightGreen.withOpacity(0.1),
-                    ),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppTheme.primaryDarkGreen, width: 2),
+                  ),
+                  filled: true,
+                      fillColor: AppTheme.secondaryLightGreen.withOpacity(0.1),
                 ),
+              ),
+            ),
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: _showFiltersDialog,
@@ -670,11 +670,11 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                   ),
                   style: IconButton.styleFrom(
                     backgroundColor: AppTheme.secondaryLightGreen.withOpacity(0.2),
-                  ),
-                ),
-              ],
+                        ),
             ),
-          ),
+          ],
+        ),
+      ),
           
           // Tabs
           if (_searchQuery.isNotEmpty)
@@ -703,26 +703,26 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                       _buildRecipeResults(),
                       _buildUserResults(),
                     ],
-                  ),
+            ),
           ),
         ],
       ),
     );
   }
-
+  
   Widget _buildEmptyState() {
     return Container(
       color: AppTheme.surfaceWhite,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Search history
             if (_searchHistory.isNotEmpty) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+        children: [
                   const Text(
                     'Recent Searches',
                     style: TextStyle(
@@ -767,10 +767,10 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                   children: [
                     Icon(Icons.trending_up, color: AppTheme.warning),
                     SizedBox(width: 8),
-                    Text(
+          Text(
                       'Trending Recipes',
-                      style: TextStyle(
-                        fontSize: 18,
+            style: TextStyle(
+              fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
                       ),
@@ -798,15 +798,15 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Center(
-                  child: Text(
+            child: Text(
                     'No trending recipes yet.\nStart cooking and sharing!',
-                    style: TextStyle(
-                      fontSize: 14,
+              style: TextStyle(
+                fontSize: 14,
                       color: AppTheme.textSecondary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
               )
             else
               ..._trendingRecipes.map((recipe) => _buildRecipeCard(recipe)).toList(),

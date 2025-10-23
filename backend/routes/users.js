@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
-const { auth } = require('../middleware/auth');
+const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
@@ -200,8 +200,8 @@ router.post('/follow/:id', auth, async (req, res) => {
 
 // @route   GET /api/users/recipes/:id
 // @desc    Get user's recipes
-// @access  Public
-router.get('/recipes/:id', async (req, res) => {
+// @access  Public (with optional auth for like status)
+router.get('/recipes/:id', optionalAuth, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -220,6 +220,14 @@ router.get('/recipes/:id', async (req, res) => {
       creator: req.params.id,
       isPublished: true 
     });
+
+    // Add user interaction data if authenticated
+    if (req.user) {
+      recipes.forEach(recipe => {
+        recipe._doc.isLiked = recipe.likes.includes(req.user._id);
+        recipe._doc.isBookmarked = recipe.bookmarks.includes(req.user._id);
+      });
+    }
 
     res.json({
       success: true,

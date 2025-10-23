@@ -59,9 +59,9 @@ class _OnboardingState extends State<Onboarding>
     // Calculate positions in a circular pattern
     final List<Map<String, dynamic>> circles = [];
     
-    // 8 circles positioned around a circle
-    for (int i = 0; i < 8; i++) {
-      final angle = (i * 2 * 3.14159) / 8; // 45 degrees apart
+    // 7 circles positioned around a circle
+    for (int i = 0; i < 7; i++) {
+      final angle = (i * 2 * 3.14159) / 7; // 360/7 degrees apart
       final x = centerX + radius * cos(angle);
       final y = centerY + radius * sin(angle);
       
@@ -78,6 +78,16 @@ class _OnboardingState extends State<Onboarding>
         'animationOffset': i.toDouble(),
       });
     }
+    
+    // Add 1 circle in the center
+    final centerCircleSize = baseSize * 1.2; // Slightly larger center circle
+    circles.add({
+      'image': 'assets/images/image13.png', // Use a different image for center
+      'size': centerCircleSize,
+      'left': centerX - centerCircleSize * 0.5,
+      'top': centerY - centerCircleSize * 0.5,
+      'animationOffset': 7.0, // Different animation offset for center
+    });
     
     return circles;
   }

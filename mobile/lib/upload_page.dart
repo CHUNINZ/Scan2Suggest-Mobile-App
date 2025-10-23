@@ -29,6 +29,8 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
   bool _showValidationErrors = false;
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _ingredientController = TextEditingController();
+  final _stepController = TextEditingController();
   
   // Show success overlay
   bool _isSuccessOverlayVisible = false;
@@ -130,6 +132,8 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
     _pageController.dispose();
     _nameController.dispose();
     _descriptionController.dispose();
+    _ingredientController.dispose();
+    _stepController.dispose();
     super.dispose();
   }
 
@@ -1189,6 +1193,7 @@ Made with Scan2Suggest App 🇵🇭
         ],
         
         TextField(
+          controller: _ingredientController,
           decoration: const InputDecoration(
             hintText: 'Add Filipino ingredient (e.g., pork belly, calamansi)',
             prefixIcon: Icon(Icons.add, color: AppTheme.primaryDarkGreen),
@@ -1200,6 +1205,7 @@ Made with Scan2Suggest App 🇵🇭
               HapticFeedback.lightImpact();
               setState(() {
                 _ingredients.add(value.trim());
+                _ingredientController.clear();
               });
             }
           },
@@ -1222,22 +1228,86 @@ Made with Scan2Suggest App 🇵🇭
         ),
         const SizedBox(height: 16),
         
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.lightbulb_outline, color: Colors.blue.shade700),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Tip: Add cooking steps in the order they should be performed',
+                  style: TextStyle(
+                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        if (_steps.isNotEmpty) ...[
+          Column(
+            children: _steps.asMap().entries.map((entry) {
+              int index = entry.key;
+              String step = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceWhite,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.textDisabled),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      '${index + 1}.',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(step)),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _steps.removeAt(index);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
+        
         TextField(
-          maxLines: 6,
+          controller: _stepController,
           decoration: const InputDecoration(
-            hintText: 'Describe the traditional cooking process step by step...\n\n1. First step\n2. Second step\n3. Third step',
-            prefixIcon: Icon(Icons.list_alt, color: AppTheme.primaryDarkGreen),
+            hintText: 'Add cooking step (e.g., Heat oil in a pan)',
+            prefixIcon: Icon(Icons.add, color: AppTheme.primaryDarkGreen),
             filled: true,
             fillColor: AppTheme.surfaceWhite,
           ),
-          onChanged: (value) {
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              HapticFeedback.lightImpact();
             setState(() {
-              if (_steps.isEmpty) {
-                _steps.add(value);
-              } else {
-                _steps[0] = value;
-              }
-            });
+                _steps.add(value.trim());
+                _stepController.clear();
+              });
+            }
           },
         ),
       ],
