@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "727008561887",
+    "project_id": "scan2suggest-4cba4",
+    "storage_bucket": "scan2suggest-4cba4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:727008561887:android:631b0a65c805fd47f8b76a",
+        "android_client_info": {
+          "package_name": "scan.suggest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFIXMcp1SbvTtXLVX2qSxcHCCTMo-iuLE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

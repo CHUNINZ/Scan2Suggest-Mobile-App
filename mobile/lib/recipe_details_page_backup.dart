@@ -15,37 +15,6 @@ class RecipeDetailsPage extends StatefulWidget {
 }
 
 class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
-
-  DateTime? _parseDate(dynamic value) {
-    try {
-      if (value == null) return null;
-      if (value is DateTime) return value;
-      if (value is int) {
-        // Heuristic: treat 13-digit as ms, 10-digit as seconds
-        if (value > 1000000000000) return DateTime.fromMillisecondsSinceEpoch(value);
-        if (value > 1000000000) return DateTime.fromMillisecondsSinceEpoch(value * 1000);
-      }
-      if (value is String) {
-        return DateTime.parse(value);
-      }
-      if (value is Map) {
-        final v = value['\$date'] ?? value['value'] ?? value['seconds'];
-        return _parseDate(v);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  DateTime? _dateFromMongoId(String? idHex) {
-    if (idHex == null || idHex.length < 8) return null;
-    try {
-      final secondsHex = idHex.substring(0, 8);
-      final seconds = int.parse(secondsHex, radix: 16);
-      return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
-    } catch (_) {
-      return null;
-    }
-  }
   late bool _isLiked;
   late bool _isBookmarked;
   late int _likesCount;
@@ -67,6 +36,11 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   final Map<String, TextEditingController> _nestedReplyControllers = {};
   final Map<String, bool> _isSubmittingNestedReply = {};
   final Map<String, bool> _showNestedReplyInput = {};
+  
+  // Unlimited nesting state
+  final Map<String, TextEditingController> _unlimitedReplyControllers = {};
+  final Map<String, bool> _isSubmittingUnlimitedReply = {};
+  final Map<String, bool> _showUnlimitedReplyInput = {};
   
   @override
   void initState() {
@@ -98,6 +72,10 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     }
     // Dispose all nested reply controllers
     for (final controller in _nestedReplyControllers.values) {
+      controller.dispose();
+    }
+    // Dispose all unlimited reply controllers
+    for (final controller in _unlimitedReplyControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -375,30 +353,6 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       
       if (response['success'] == true && mounted) {
         final comments = response['comments'] as List? ?? [];
-        print('🔍 Loaded comments: ${comments.length}');
-        // Debug: Check user data in comments
-        for (int i = 0; i < comments.length; i++) {
-          final comment = comments[i];
-          final user = comment['user'];
-          print('🔍 Comment $i user type: ${user.runtimeType}, value: $user');
-          
-          // Check replies
-          final replies = comment['replies'] as List? ?? [];
-          for (int j = 0; j < replies.length; j++) {
-            final reply = replies[j];
-            final replyUser = reply['user'];
-            print('🔍 Reply $j user type: ${replyUser.runtimeType}, value: $replyUser');
-            
-            // Check nested replies
-            final nestedReplies = reply['replies'] as List? ?? [];
-            for (int k = 0; k < nestedReplies.length; k++) {
-              final nestedReply = nestedReplies[k];
-              final nestedUser = nestedReply['user'];
-              print('🔍 Nested reply $k user type: ${nestedUser.runtimeType}, value: $nestedUser');
-            }
-          }
-        }
-        
         setState(() {
           _comments = comments.cast<Map<String, dynamic>>();
           _isLoadingComments = false;
@@ -498,7 +452,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       
       if (response['success'] == true && mounted) {
         await _loadComments(); // Reload comments
-        // Success dialog removed for better UX
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Comment Deleted",
+          message: "The comment has been removed.",
+        );
       } else {
         throw Exception(response['message'] ?? 'Failed to delete comment');
       }
@@ -524,15 +483,11 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
 
   // Show nested reply input (Facebook-style)
   void _toggleNestedReplyInput(String replyId) {
-    print('🔄 Toggling nested reply input for replyId: $replyId');
     setState(() {
       _showNestedReplyInput[replyId] = true;
       _nestedReplyControllers[replyId] = TextEditingController();
       _isSubmittingNestedReply[replyId] = false;
     });
-    print('✅ Nested reply input state set for replyId: $replyId');
-    print('🔍 State maps: _showNestedReplyInput keys: ${_showNestedReplyInput.keys}');
-    print('🔍 State maps: _nestedReplyControllers keys: ${_nestedReplyControllers.keys}');
   }
 
   // Submit reply
@@ -591,14 +546,8 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
 
   // Submit nested reply
   Future<void> _submitNestedReply(String commentId, String replyId) async {
-    print('🔄 Submitting nested reply for commentId: $commentId, replyId: $replyId');
-    print('🔍 Available controllers: ${_nestedReplyControllers.keys}');
-    
     final controller = _nestedReplyControllers[replyId];
-    if (controller == null) {
-      print('❌ Nested reply controller not found for replyId: $replyId');
-      return;
-    }
+    if (controller == null) return;
     
     final text = controller.text.trim();
     if (text.isEmpty) return;
@@ -629,7 +578,6 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           _showNestedReplyInput[replyId] = false;
         });
         await _loadComments(); // Reload comments
-        print('✅ Nested reply submitted successfully');
         // Success dialog removed for better UX
       } else {
         throw Exception(response['message'] ?? 'Failed to add nested reply');
@@ -688,7 +636,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       
       if (response['success'] == true && mounted) {
         await _loadComments(); // Reload comments
-        // Success dialog removed for better UX
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Reply Deleted",
+          message: "The reply has been removed.",
+        );
       } else {
         throw Exception(response['message'] ?? 'Failed to delete reply');
       }
@@ -741,7 +694,12 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       
       if (response['success'] == true && mounted) {
         await _loadComments(); // Reload comments
-        // Success dialog removed for better UX
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Reply Deleted",
+          message: "The reply has been removed.",
+        );
       } else {
         throw Exception(response['message'] ?? 'Failed to delete nested reply');
       }
@@ -754,6 +712,351 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         );
       }
     }
+  }
+
+  // Unlimited nesting methods
+  Future<void> _toggleUnlimitedReplyInput(String replyId) async {
+    setState(() {
+      _showUnlimitedReplyInput[replyId] = !(_showUnlimitedReplyInput[replyId] ?? false);
+    });
+    
+    if (_showUnlimitedReplyInput[replyId] == true) {
+      _unlimitedReplyControllers[replyId] = TextEditingController();
+    } else {
+      _unlimitedReplyControllers[replyId]?.dispose();
+      _unlimitedReplyControllers.remove(replyId);
+    }
+  }
+
+  Future<void> _submitUnlimitedReply(String commentId, String parentReplyId, List<String> parentReplyPath, String text) async {
+    if (text.trim().isEmpty) return;
+    
+    setState(() {
+      _isSubmittingUnlimitedReply[parentReplyId] = true;
+    });
+    
+    try {
+      final recipeId = widget.recipe['id'] ?? widget.recipe['_id'];
+      if (recipeId == null) {
+        throw Exception('Recipe ID not found');
+      }
+      
+      final response = await ApiService.addReplyToAny(
+        recipeId: recipeId.toString(),
+        commentId: commentId,
+        parentReplyId: parentReplyId,
+        parentReplyPath: parentReplyPath,
+        text: text,
+      );
+      
+      if (response['success'] == true && mounted) {
+        final controller = _unlimitedReplyControllers[parentReplyId];
+        if (controller != null) {
+          controller.clear();
+        }
+        // Close unlimited reply input after submission (Facebook-style)
+        setState(() {
+          _showUnlimitedReplyInput[parentReplyId] = false;
+        });
+        await _loadComments(); // Reload comments
+        // Success dialog removed for better UX
+      } else {
+        throw Exception(response['message'] ?? 'Failed to add unlimited reply');
+      }
+    } catch (e) {
+      if (mounted) {
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingUnlimitedReply[parentReplyId] = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteUnlimitedReply(String commentId, String replyId, List<String> replyPath) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Reply'),
+        content: const Text('Are you sure you want to delete this reply?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true) return;
+    
+    try {
+      final recipeId = widget.recipe['id'] ?? widget.recipe['_id'];
+      if (recipeId == null) {
+        throw Exception('Recipe ID not found');
+      }
+      
+      final response = await ApiService.deleteAnyReply(
+        recipeId: recipeId.toString(),
+        commentId: commentId,
+        replyId: replyId,
+        replyPath: replyPath,
+      );
+      
+      if (response['success'] == true && mounted) {
+        await _loadComments(); // Reload comments
+        
+        DialogHelper.showSuccess(
+          context,
+          title: "Reply Deleted",
+          message: "The reply has been removed.",
+        );
+      } else {
+        throw Exception(response['message'] ?? 'Failed to delete unlimited reply');
+      }
+    } catch (e) {
+      if (mounted) {
+        DialogHelper.showError(
+          context,
+          title: "Error",
+          message: e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+    }
+  }
+
+  // Helper method to build reply path for unlimited nesting
+  List<String> _buildReplyPath(List<dynamic> replies, String targetReplyId, List<String> currentPath) {
+    for (int i = 0; i < replies.length; i++) {
+      final reply = replies[i];
+      final replyId = reply['_id']?.toString();
+      if (replyId == targetReplyId) {
+        return [...currentPath, replyId];
+      }
+      
+      if (reply['replies'] != null && reply['replies'].isNotEmpty) {
+        final newPath = [...currentPath, replyId];
+        final foundPath = _buildReplyPath(reply['replies'], targetReplyId, newPath);
+        if (foundPath.isNotEmpty) {
+          return foundPath;
+        }
+      }
+    }
+    return [];
+  }
+
+  // Helper method to count all replies recursively
+  int _countAllReplies(List<dynamic> replies) {
+    if (replies.isEmpty) return 0;
+    
+    int count = replies.length;
+    for (final reply in replies) {
+      if (reply['replies'] != null && reply['replies'].isNotEmpty) {
+        count += _countAllReplies(reply['replies']);
+      }
+    }
+    return count;
+  }
+
+  // Recursive widget to build unlimited nested replies
+  Widget _buildUnlimitedReplies(List<dynamic> replies, String commentId, int depth) {
+    if (replies.isEmpty) return const SizedBox.shrink();
+    
+    return Column(
+      children: replies.map((reply) {
+        final replyId = reply['_id']?.toString() ?? '';
+        final replyText = reply['text'] ?? '';
+        final replyUser = reply['user'];
+        final replyUserName = replyUser?['name'] ?? 'Unknown User';
+        final replyUserImage = replyUser?['profileImage'];
+        final replyCreatedAt = reply['createdAt'];
+        final replyReplies = reply['replies'] as List<dynamic>? ?? [];
+        
+        // Build path to this reply
+        final replyPath = _buildReplyPath(_comments.firstWhere((c) => c['_id']?.toString() == commentId)['replies'] ?? [], replyId, []);
+        
+        return Container(
+          margin: EdgeInsets.only(left: 16.0 + (depth * 16.0), top: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Reply content
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // User avatar
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundImage: replyUserImage != null && replyUserImage.isNotEmpty
+                        ? NetworkImage(_getFullImageUrl(replyUserImage) ?? '')
+                        : null,
+                    child: replyUserImage == null || replyUserImage.isEmpty
+                        ? Text(replyUserName.isNotEmpty ? replyUserName[0].toUpperCase() : 'U')
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  // Reply content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                replyUserName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                replyText,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // Reply actions
+                        Row(
+                          children: [
+                            Text(
+                              _formatTimeAgo(replyCreatedAt),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Reply button
+                            GestureDetector(
+                              onTap: () => _toggleUnlimitedReplyInput(replyId),
+                              child: Text(
+                                'Reply',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (replyReplies.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_countAllReplies(replyReplies)} replies',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            // Delete button (only for own replies)
+                            FutureBuilder<bool>(
+                              future: _isOwnComment(replyUser?['_id']?.toString() ?? ''),
+                              builder: (context, snapshot) {
+                                final isOwn = snapshot.data ?? false;
+                                if (!isOwn) return const SizedBox.shrink();
+                                
+                                return Row(
+                                  children: [
+                                    const SizedBox(width: 16),
+                                    Icon(
+                                      Icons.more_horiz,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Long press to delete',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              // Reply input
+              if (_showUnlimitedReplyInput[replyId] == true) ...[
+                const SizedBox(height: 8),
+                Container(
+                  margin: const EdgeInsets.only(left: 40),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _unlimitedReplyControllers[replyId],
+                          decoration: const InputDecoration(
+                            hintText: 'Write a reply...',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          maxLines: null,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isSubmittingUnlimitedReply[replyId] == true
+                            ? null
+                            : () async {
+                                final controller = _unlimitedReplyControllers[replyId];
+                                if (controller != null) {
+                                  await _submitUnlimitedReply(
+                                    commentId,
+                                    replyId,
+                                    replyPath,
+                                    controller.text,
+                                  );
+                                }
+                              },
+                        child: _isSubmittingUnlimitedReply[replyId] == true
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Reply'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              // Nested replies (recursive)
+              if (replyReplies.isNotEmpty)
+                _buildUnlimitedReplies(replyReplies, commentId, depth + 1),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 
   String? _getFullImageUrl(dynamic image) {
@@ -1270,24 +1573,15 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: TextField(
-                                    controller: _commentController,
-                                    maxLines: 1,
-                                    maxLength: 500,
-                                    style: const TextStyle(fontSize: 16),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Add a comment...',
-                                      hintStyle: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 16,
-                                      ),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.zero,
-                                      counterText: '',
-                                      isDense: true,
-                                    ),
+                                child: TextField(
+                                  controller: _commentController,
+                                  maxLines: null,
+                                  maxLength: 500,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Add a comment...',
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.all(16),
+                                    counterText: '',
                                   ),
                                 ),
                               ),
@@ -1347,8 +1641,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                           )
                         else
                           ..._comments.map((comment) {
-                            final dynamic commentUserRaw = comment['user'];
-                            final Map<String, dynamic>? user = commentUserRaw is Map ? commentUserRaw as Map<String, dynamic> : null;
+                            final user = comment['user'] as Map<String, dynamic>?;
                             final userName = user?['name'] ?? 'Unknown User';
                             final userImage = user?['profileImage'];
                             final commentText = comment['text'] ?? '';
@@ -1358,18 +1651,21 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                             
                             // Format date
                             String formattedDate = 'Just now';
-                            final parsedCommentDate = _parseDate(createdAt) ?? _dateFromMongoId(commentId?.toString());
-                            if (parsedCommentDate != null) {
-                              final now = DateTime.now();
-                              final difference = now.difference(parsedCommentDate);
-                              if (difference.inDays > 0) {
-                                formattedDate = '${difference.inDays}d ago';
-                              } else if (difference.inHours > 0) {
-                                formattedDate = '${difference.inHours}h ago';
-                              } else if (difference.inMinutes > 0) {
-                                formattedDate = '${difference.inMinutes}m ago';
-                              } else {
-                                formattedDate = 'Just now';
+                            if (createdAt != null) {
+                              try {
+                                final date = DateTime.parse(createdAt.toString());
+                                final now = DateTime.now();
+                                final difference = now.difference(date);
+                                
+                                if (difference.inDays > 0) {
+                                  formattedDate = '${difference.inDays}d ago';
+                                } else if (difference.inHours > 0) {
+                                  formattedDate = '${difference.inHours}h ago';
+                                } else if (difference.inMinutes > 0) {
+                                  formattedDate = '${difference.inMinutes}m ago';
+                                }
+                              } catch (e) {
+                                // Keep default "Just now"
                               }
                             }
                             
@@ -1542,8 +1838,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                       margin: const EdgeInsets.only(left: 32),
                                       child: Column(
                                         children: replies.map((reply) {
-                                              final dynamic replyUserRaw = reply['user'];
-                                              final Map<String, dynamic>? replyUser = replyUserRaw is Map ? replyUserRaw as Map<String, dynamic> : null;
+                                          final replyUser = reply['user'] as Map<String, dynamic>?;
                                           final replyUserName = replyUser?['name'] ?? 'Unknown User';
                                           final replyUserImage = replyUser?['profileImage'];
                                           final replyText = reply['text'] ?? '';
@@ -1552,18 +1847,21 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                           
                                           // Format reply date
                                           String replyFormattedDate = 'Just now';
-                                          final parsedReplyDate = _parseDate(replyCreatedAt) ?? _dateFromMongoId(replyId?.toString());
-                                          if (parsedReplyDate != null) {
-                                            final now = DateTime.now();
-                                            final difference = now.difference(parsedReplyDate);
-                                            if (difference.inDays > 0) {
-                                              replyFormattedDate = '${difference.inDays}d ago';
-                                            } else if (difference.inHours > 0) {
-                                              replyFormattedDate = '${difference.inHours}h ago';
-                                            } else if (difference.inMinutes > 0) {
-                                              replyFormattedDate = '${difference.inMinutes}m ago';
-                                            } else {
-                                              replyFormattedDate = 'Just now';
+                                          if (replyCreatedAt != null) {
+                                            try {
+                                              final date = DateTime.parse(replyCreatedAt.toString());
+                                              final now = DateTime.now();
+                                              final difference = now.difference(date);
+                                              
+                                              if (difference.inDays > 0) {
+                                                replyFormattedDate = '${difference.inDays}d ago';
+                                              } else if (difference.inHours > 0) {
+                                                replyFormattedDate = '${difference.inHours}h ago';
+                                              } else if (difference.inMinutes > 0) {
+                                                replyFormattedDate = '${difference.inMinutes}m ago';
+                                              }
+                                            } catch (e) {
+                                              // Keep default "Just now"
                                             }
                                           }
                                           
@@ -1730,44 +2028,11 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                                                         ),
                                                       ],
                                                       
-                                                      // Display nested replies
+                                                      // Display unlimited nested replies
                                                       if (reply['replies'] != null && (reply['replies'] as List).isNotEmpty) ...[
                                                         const SizedBox(height: 8),
-                                                        Container(
-                                                          margin: const EdgeInsets.only(left: 16),
-                                                          child: Column(
-                                                            children: (reply['replies'] as List).map((nestedReply) {
-                                                                final dynamic nestedReplyUserRaw = nestedReply['user'];
-                                                                final Map<String, dynamic>? nestedReplyUser = nestedReplyUserRaw is Map ? nestedReplyUserRaw as Map<String, dynamic> : null;
-                                                              final nestedReplyUserName = nestedReplyUser?['name'] ?? 'Unknown User';
-                                                              final nestedReplyUserImage = nestedReplyUser?['profileImage'];
-                                                              final nestedReplyText = nestedReply['text'] ?? '';
-                                                              final nestedReplyCreatedAt = nestedReply['createdAt'];
-                                                              final nestedReplyId = nestedReply['_id'];
-                                                              
-                                                              // Format nested reply date
-                                                              String nestedReplyFormattedDate = 'Just now';
-                                                                final parsedNestedDate = _parseDate(nestedReplyCreatedAt) ?? _dateFromMongoId(nestedReplyId?.toString());
-                                                                if (parsedNestedDate != null) {
-                                                                  final now = DateTime.now();
-                                                                  final difference = now.difference(parsedNestedDate);
-                                                                  if (difference.inDays > 0) {
-                                                                    nestedReplyFormattedDate = '${difference.inDays}d ago';
-                                                                  } else if (difference.inHours > 0) {
-                                                                    nestedReplyFormattedDate = '${difference.inHours}h ago';
-                                                                  } else if (difference.inMinutes > 0) {
-                                                                    nestedReplyFormattedDate = '${difference.inMinutes}m ago';
-                                                                  } else {
-                                                                    nestedReplyFormattedDate = 'Just now';
-                                                                  }
-                                                                }
-                                                              
-                                                              return FutureBuilder<bool>(
-                                                                future: _isOwnComment(nestedReplyUser?['_id']?.toString() ?? ''),
-                                                                builder: (context, nestedSnapshot) {
-                                                                  final isOwnNestedReply = nestedSnapshot.data ?? false;
-                                                                  
-                                                                  return GestureDetector(
+                                                        _buildUnlimitedReplies(reply['replies'], commentId.toString(), 1),
+                                                      ],
                                                                     onLongPress: isOwnNestedReply && nestedReplyId != null
                                                                         ? () {
                                                                             HapticFeedback.mediumImpact();
@@ -1881,7 +2146,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                               );
                             },
                           );
-                        }).toList(),
+                          }).toList(),
                       ],
                     ),
                   ),

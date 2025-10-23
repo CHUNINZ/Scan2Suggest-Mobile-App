@@ -5,6 +5,7 @@ import 'discover_page.dart';
 import 'upload_page.dart';
 import 'settings_page.dart';
 import 'main_scaffold.dart';
+import 'utils/navigation_helper.dart';
 
 class MainNavigationController extends StatefulWidget {
   const MainNavigationController({super.key});
@@ -45,6 +46,21 @@ class _MainNavigationControllerState extends State<MainNavigationController>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    
+    // Check for pending tab navigation after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingNavigation();
+    });
+  }
+  
+  void _checkPendingNavigation() {
+    final pendingTabIndex = NavigationHelper.getPendingTabIndex();
+    print('MainNavigationController: Checking for pending tab index: $pendingTabIndex');
+    if (pendingTabIndex != null) {
+      print('MainNavigationController: Navigating to tab index: $pendingTabIndex');
+      // Navigate to the pending tab
+      _onItemTapped(pendingTabIndex);
+    }
   }
 
   @override

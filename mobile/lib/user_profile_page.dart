@@ -5,6 +5,8 @@ import 'followers_list_page.dart';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
+import 'main_scaffold.dart';
+import 'utils/navigation_helper.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String userId;
@@ -144,10 +146,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
         } catch (e) {
           print('❌ Error fetching follower/following counts for user ${widget.userId}: $e');
         }
-        
-        setState(() {
-          _userProfile = {
-            'id': widget.userId,
+          
+          setState(() {
+            _userProfile = {
+              'id': widget.userId,
             'name': user['name'] ?? widget.userName ?? 'User',
             'profileImage': user['profileImage'],
             'bio': user['bio'] ?? '',
@@ -155,11 +157,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
             'followersCount': followersCount,
             'followingCount': followingCount,
             'createdAt': user['createdAt'],
-          };
-          // Check if current user is following this profile
-          _isFollowing = following.any((id) => id.toString() == widget.userId.toString());
-          _isLoadingProfile = false;
-        });
+            };
+            // Check if current user is following this profile
+            _isFollowing = following.any((id) => id.toString() == widget.userId.toString());
+            _isLoadingProfile = false;
+          });
       }
     } catch (e) {
       if (mounted) {
@@ -215,7 +217,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
             'ingredients': ingredientNames,
             'steps': instructionSteps,
             'rating': (recipe['averageRating'] ?? 0).toDouble(),
+            'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
+            'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
             'likes': recipe['likesCount'] ?? 0,
+            'isLiked': recipe['isLiked'] ?? false,
             'isBookmarked': recipe['isBookmarked'] ?? false,
           };
         }).toList();
@@ -336,16 +341,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+    return MainScaffold(
+      title: _userProfile?['name'] ?? widget.userName ?? 'Profile',
+      showBottomNav: true,
+      currentIndex: 0, // Default to home tab
+      onNavTap: (index) {
+        NavigationHelper.navigateToTab(context, index);
+      },
       body: _isLoadingProfile
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.primaryDarkGreen),
@@ -525,45 +527,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          // Message button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {
-                // TODO: Implement message functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Message feature coming soon!'),
-                    backgroundColor: AppTheme.primaryDarkGreen,
-                  ),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.primaryDarkGreen,
-                side: const BorderSide(color: AppTheme.primaryDarkGreen, width: 2),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.mail, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Message',
-                          style: TextStyle(
-                            fontSize: 16,
-                      fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -767,16 +730,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
       );
     }
 
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
         child: GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: MediaQuery.of(context).size.width < 400 ? 0.65 : 0.7,
         ),
           itemCount: _userRecipes.length,
           itemBuilder: (context, index) {
@@ -871,10 +834,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
-    final gradientColors = _getGradientColors(recipe['type'] ?? 'Food');
-    final recipeIcon = _getRecipeIcon(recipe['type'] ?? 'Food');
-    final imageUrl = _getFullImageUrl(recipe['image']);
-
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -891,146 +850,156 @@ class _UserProfilePageState extends State<UserProfilePage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            // Recipe image
-            ClipRRect(
+            // Recipe Image
+            Expanded(
+              flex: 3,
+              child: ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
               child: Container(
-                height: 120,
                 width: double.infinity,
-                child: imageUrl != null
+                  color: Colors.grey[300],
+                  child: _getFullImageUrl(recipe['image']) != null
                     ? Image.network(
-                        imageUrl,
+                          _getFullImageUrl(recipe['image'])!,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: gradientColors,
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                recipeIcon,
-                                size: 40,
-                                color: Colors.white.withOpacity(0.8),
-                              ),
-                            ),
-                          );
-                        },
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: gradientColors,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            recipeIcon,
-                            size: 40,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
+                            return _buildFallbackImage(recipe);
+                          },
+                        )
+                      : _buildFallbackImage(recipe),
                       ),
               ),
             ),
 
-            // Recipe info
+            // Recipe Info
             Expanded(
+              flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width < 400 ? 8 : 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Recipe type and name
+                    // Recipe name - responsive font size
+                    Text(
+                      recipe['name'] ?? 'Untitled',
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width < 400 ? 12 : 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    SizedBox(height: MediaQuery.of(context).size.width < 400 ? 6 : 8),
+                    
+                    // Time and likes row
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          recipeIcon,
-                          size: 16,
-                          color: AppTheme.primaryDarkGreen,
-                        ),
-                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                      recipe['name'] ?? 'Untitled',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                            recipe['time'] ?? '30 mins',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppTheme.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              recipe['isLiked'] == true ? Icons.favorite : Icons.favorite_border,
+                              size: 14,
+                              color: recipe['isLiked'] == true ? Colors.red : AppTheme.textSecondary,
+                            ),
+                            const SizedBox(width: 3),
+                        Text(
+                              recipe['likes']?.toString() ?? '0',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: recipe['isLiked'] == true ? Colors.red : AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
                     
-                    // Recipe title
-                        Text(
-                      '${recipe['name'] ?? 'Untitled'} (Family Recipe)',
-                          style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
+                    const SizedBox(height: 6),
                     
-                    // Time and likes
-                    Row(
+                    // Comments and rating - responsive layout
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Comments row
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          recipe['time'] ?? '45 min',
+                                Icons.comment_outlined,
+                                size: MediaQuery.of(context).size.width < 400 ? 8 : 10,
+                                color: AppTheme.textSecondary,
+                              ),
+                              SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                              Flexible(
+                                child: Text(
+                                  '${recipe['commentsCount'] ?? 0}',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                                    fontSize: MediaQuery.of(context).size.width < 400 ? 8 : 9,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const Spacer(),
+                          SizedBox(height: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                          // Rating row
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                         Icon(
-                          Icons.favorite_border,
-                          size: 16,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          recipe['likes']?.toString() ?? '324',
+                                Icons.star,
+                                size: MediaQuery.of(context).size.width < 400 ? 8 : 10,
+                                color: (recipe['rating'] ?? 0) > 0 ? Colors.amber : AppTheme.textSecondary.withOpacity(0.5),
+                              ),
+                              SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                              Flexible(
+                                child: Text(
+                                  (recipe['rating'] ?? 0) > 0
+                                      ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)}'
+                                      : 'No ratings',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                                    fontSize: MediaQuery.of(context).size.width < 400 ? 8 : 9,
+                                    color: (recipe['rating'] ?? 0) > 0 
+                                        ? AppTheme.textSecondary 
+                                        : AppTheme.textSecondary.withOpacity(0.5),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1042,34 +1011,44 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  List<Color> _getGradientColors(String type) {
-    switch (type.toLowerCase()) {
-      case 'dessert':
-        return [const Color(0xFFFF6B9D), const Color(0xFFC44569)];
-      case 'breakfast':
-        return [const Color(0xFFFFA726), const Color(0xFFFB8C00)];
-      case 'lunch':
-        return [const Color(0xFF66BB6A), const Color(0xFF43A047)];
-      case 'dinner':
-        return [const Color(0xFF42A5F5), const Color(0xFF1E88E5)];
-      default:
-        return [AppTheme.secondaryLightGreen, AppTheme.primaryDarkGreen];
-    }
-  }
 
-  IconData _getRecipeIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'dessert':
-        return Icons.cake;
-      case 'breakfast':
-        return Icons.free_breakfast;
-      case 'lunch':
-        return Icons.lunch_dining;
-      case 'dinner':
-        return Icons.dinner_dining;
+  Widget _buildFallbackImage(Map<String, dynamic> recipe) {
+    final recipeType = recipe['type'] ?? 'Food';
+    List<Color> gradientColors;
+    IconData recipeIcon;
+
+    switch (recipeType.toLowerCase()) {
+      case 'drink':
+        gradientColors = [Colors.blue.shade300, Colors.blue.shade600];
+        recipeIcon = Icons.local_drink;
+        break;
+      case 'snack':
+        gradientColors = [AppTheme.secondaryLightGreen, AppTheme.primaryDarkGreen];
+        recipeIcon = Icons.local_cafe;
+        break;
       default:
-        return Icons.restaurant;
+        gradientColors = [AppTheme.secondaryLightGreen, AppTheme.primaryDarkGreen];
+        recipeIcon = Icons.restaurant;
+        break;
     }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          recipeIcon,
+          size: 32,
+          color: Colors.white.withOpacity(0.8),
+        ),
+      ),
+    );
   }
 }
+
 

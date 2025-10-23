@@ -6,29 +6,34 @@ class NetworkDiscovery {
   
   /// Automatically discover the backend server on the local network
   static Future<String?> discoverBackendUrl() async {
-    // First try the known backend IP directly
-    if (await _testUrl('http://10.196.73.221:3000/api')) {
-      return 'http://10.196.73.221:3000/api';
+    // First try the known backend IP directly (highest priority)
+    if (await _testUrl('http://192.168.194.133:3000/api')) {
+      print('✅ Found backend at known IP: 192.168.194.133:3000');
+      return 'http://192.168.194.133:3000/api';
     }
     
-    // Get device's current network info and generate candidates
+    // Try predefined URLs from ApiConfig (second priority)
+    for (String url in ApiConfig.possibleBaseUrls) {
+      if (await _testUrl(url)) {
+        print('✅ Found backend at predefined URL: $url');
+        return url;
+      }
+    }
+    
+    // Only if predefined URLs fail, try network discovery
+    print('⚠️ Predefined URLs failed, trying network discovery...');
     List<String> candidateIps = await _generateCandidateIps();
     
     // Test each candidate IP
     for (String ip in candidateIps) {
       String testUrl = 'http://$ip:3000/api';
       if (await _testUrl(testUrl)) {
+        print('✅ Found backend at discovered IP: $ip');
         return testUrl;
       }
     }
     
-    // Fallback to predefined URLs
-    for (String url in ApiConfig.possibleBaseUrls) {
-      if (await _testUrl(url)) {
-        return url;
-      }
-    }
-    
+    print('❌ No backend server found');
     return null;
   }
   

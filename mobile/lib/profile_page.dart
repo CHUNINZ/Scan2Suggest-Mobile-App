@@ -8,6 +8,8 @@ import 'app_theme.dart';
 import 'services/api_service.dart';
 import 'config/api_config.dart';
 import 'utils/dialog_helper.dart';
+import 'main_scaffold.dart';
+import 'utils/navigation_helper.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -115,7 +117,23 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _isLoadingProfile = false;
         _hasError = true;
-        _errorMessage = 'Network error. Please check your connection.';
+        
+        // Handle specific error cases
+        String errorMessage = e.toString().replaceAll('Exception: ', '');
+        
+        if (errorMessage.contains('No token provided') || 
+            errorMessage.contains('access denied') ||
+            errorMessage.contains('401')) {
+          errorMessage = 'Please sign in to view your profile';
+        } else if (errorMessage.contains('Failed to parse server response')) {
+          errorMessage = 'Server response error. Please try again.';
+        } else if (errorMessage.contains('Too many requests')) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (errorMessage.contains('Network error')) {
+          errorMessage = 'Network error. Please check your connection.';
+        }
+        
+        _errorMessage = errorMessage;
       });
     }
   }
@@ -198,6 +216,22 @@ class _ProfilePageState extends State<ProfilePage> {
       final cookTime = recipe['cookTime'] ?? 0;
       final totalTime = prepTime + cookTime;
       
+      // Process ingredients
+      final ingredientsList = recipe['ingredients'] as List? ?? [];
+      final ingredientNames = ingredientsList.map((ing) {
+        if (ing is String) return ing;
+        if (ing is Map) return ing['name'] ?? 'Unknown ingredient';
+        return ing.toString();
+      }).toList();
+      
+      // Process instructions
+      final instructionsList = recipe['instructions'] as List? ?? [];
+      final instructionSteps = instructionsList.map((inst) {
+        if (inst is String) return inst;
+        if (inst is Map) return inst['instruction'] ?? inst['step'] ?? 'Step';
+        return inst.toString();
+      }).toList();
+      
       final transformedRecipe = {
         'id': recipe['_id'] ?? recipe['id'],
         'name': recipe['title'] ?? recipe['name'] ?? 'Untitled Recipe',
@@ -210,14 +244,19 @@ class _ProfilePageState extends State<ProfilePage> {
             : _userProfile?['name'] ?? 'Unknown',
         'description': recipe['description'] ?? '',
         'rating': (recipe['averageRating'] ?? 0).toDouble(),
+        'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
+        'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
         'serves': recipe['servings'] ?? 4,
         'difficulty': _capitalizeDifficulty(recipe['difficulty'] ?? 'Medium'),
         'category': recipe['category'] ?? 'Main Course',
         'prepTime': prepTime,
         'cookTime': cookTime,
+        'isLiked': recipe['isLiked'] ?? false,
         'isBookmarked': recipe['isBookmarked'] ?? false,
         'image': _getFullImageUrl(recipe['images']?.first),
         'dateCreated': _formatDate(recipe['createdAt']),
+        'ingredients': ingredientNames,
+        'steps': instructionSteps,
       };
       
       print('📝 Transformed recipe: ${transformedRecipe['name']} (ID: ${transformedRecipe['id']})');
@@ -405,39 +444,72 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_hasError) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppTheme.primaryDarkGreen),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: const Text(
-            'Profile',
-            style: TextStyle(color: AppTheme.primaryDarkGreen, fontWeight: FontWeight.bold),
-          ),
-        ),
+      return MainScaffold(
+        title: 'Profile',
+        showBottomNav: true,
+        currentIndex: 4, // Settings tab index
+        onNavTap: (index) {
+          NavigationHelper.navigateToTab(context, index);
+        },
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage,
-                style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                textAlign: TextAlign.center,
+              Icon(
+                _errorMessage.contains('Please sign in') ? Icons.lock_outline : Icons.error_outline, 
+                size: 64, 
+                color: _errorMessage.contains('Please sign in') ? Colors.orange[300] : Colors.grey[400]
               ),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadUserData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryDarkGreen,
-                  foregroundColor: Colors.white,
+              Text(
+                _errorMessage.contains('Please sign in') ? 'Authentication Required' : 'Error loading profile',
+                style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _errorMessage,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
                 ),
-                child: const Text('Retry'),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: _loadUserData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryDarkGreen,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                  ),
+                  if (_errorMessage.contains('Please sign in')) ...[
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/signin',
+                          (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Sign In', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -446,50 +518,26 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     if (_isLoadingProfile) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppTheme.primaryDarkGreen),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: const Text(
-            'Profile',
-            style: TextStyle(color: AppTheme.primaryDarkGreen, fontWeight: FontWeight.bold),
-          ),
-        ),
+      return MainScaffold(
+        title: 'Profile',
+        showBottomNav: true,
+        currentIndex: 4, // Settings tab index
+        onNavTap: (index) {
+          NavigationHelper.navigateToTab(context, index);
+        },
         body: const Center(
           child: CircularProgressIndicator(color: AppTheme.primaryDarkGreen),
         ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryDarkGreen),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(color: AppTheme.primaryDarkGreen, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.red, size: 18),
-            label: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
-      ),
+    return MainScaffold(
+      title: 'Profile',
+      showBottomNav: true,
+      currentIndex: 4, // Settings tab index
+      onNavTap: (index) {
+        NavigationHelper.navigateToTab(context, index);
+      },
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         color: AppTheme.primaryDarkGreen,
@@ -608,6 +656,28 @@ class _ProfilePageState extends State<ProfilePage> {
             child: const Text(
               'Edit Profile',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Logout Button
+          OutlinedButton(
+            onPressed: _logout,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+            ),
+            child: const Text(
+              'Logout',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           
@@ -792,11 +862,11 @@ class _ProfilePageState extends State<ProfilePage> {
       height: 400,
       margin: const EdgeInsets.symmetric(horizontal: 20),
       child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.7,
+          childAspectRatio: MediaQuery.of(context).size.width < 400 ? 0.65 : 0.7,
         ),
         itemCount: 6,
         itemBuilder: (context, index) {
@@ -855,11 +925,11 @@ class _ProfilePageState extends State<ProfilePage> {
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.7,
+          childAspectRatio: MediaQuery.of(context).size.width < 400 ? 0.65 : 0.7,
         ),
         itemCount: recipes.length,
         itemBuilder: (context, index) {
@@ -913,32 +983,39 @@ class _ProfilePageState extends State<ProfilePage> {
             
             // Recipe Info
             Expanded(
-              flex: 1,
+              flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width < 400 ? 8 : 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // Recipe name - responsive font size
                     Text(
                       recipe['name'] ?? 'Untitled',
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width < 400 ? 12 : 14,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
+                        height: 1.2,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     
+                    SizedBox(height: MediaQuery.of(context).size.width < 400 ? 6 : 8),
+                    
+                    // Time and bookmark row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          recipe['time'] ?? '30 mins',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
+                        Expanded(
+                          child: Text(
+                            recipe['time'] ?? '30 mins',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppTheme.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         GestureDetector(
@@ -957,6 +1034,67 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                       ],
+                    ),
+                    
+                    const SizedBox(height: 6),
+                    
+                    // Comments and rating - responsive layout
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Comments row
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.comment_outlined,
+                                size: MediaQuery.of(context).size.width < 400 ? 8 : 10,
+                                color: AppTheme.textSecondary,
+                              ),
+                              SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                              Flexible(
+                                child: Text(
+                                  '${recipe['commentsCount'] ?? 0}',
+                                  style: TextStyle(
+                                    fontSize: MediaQuery.of(context).size.width < 400 ? 8 : 9,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                          // Rating row
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.star,
+                                size: MediaQuery.of(context).size.width < 400 ? 8 : 10,
+                                color: (recipe['rating'] ?? 0) > 0 ? Colors.amber : AppTheme.textSecondary.withOpacity(0.5),
+                              ),
+                              SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
+                              Flexible(
+                                child: Text(
+                                  (recipe['rating'] ?? 0) > 0
+                                      ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)}'
+                                      : 'No ratings',
+                                  style: TextStyle(
+                                    fontSize: MediaQuery.of(context).size.width < 400 ? 8 : 9,
+                                    color: (recipe['rating'] ?? 0) > 0 
+                                        ? AppTheme.textSecondary 
+                                        : AppTheme.textSecondary.withOpacity(0.5),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
