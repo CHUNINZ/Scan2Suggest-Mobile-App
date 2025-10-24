@@ -821,9 +821,9 @@ router.post('/ingredient/single', auth, upload.memoryUpload.single('scanImage'),
 
     const session = ingredientSessions.get(userId);
 
-    // Check if ingredient already exists in the list (avoid duplicates)
+    // Check if ingredient already exists in the list (avoid duplicates) - case insensitive
     const existingIndex = session.ingredients.findIndex(
-      item => item.name.toLowerCase() === detectedIngredient.name.toLowerCase()
+      item => item.name.toLowerCase().trim() === detectedIngredient.name.toLowerCase().trim()
     );
 
     if (existingIndex >= 0) {
@@ -935,9 +935,9 @@ router.post('/ingredient/add-manual', auth, [
 
     const session = ingredientSessions.get(userId);
 
-    // Check for duplicates
+    // Check for duplicates - case insensitive
     const existingIndex = session.ingredients.findIndex(
-      item => item.name.toLowerCase() === ingredientName.toLowerCase()
+      item => item.name.toLowerCase().trim() === ingredientName.toLowerCase().trim()
     );
 
     if (existingIndex >= 0) {
@@ -949,9 +949,10 @@ router.post('/ingredient/add-manual', auth, [
       });
     }
 
-    // Add manually entered ingredient
+    // Add manually entered ingredient with consistent capitalization
+    const normalizedName = ingredientName.trim();
     const newIngredient = {
-      name: ingredientName.charAt(0).toUpperCase() + ingredientName.slice(1).toLowerCase(),
+      name: normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1).toLowerCase(),
       confidence: 1.0, // Manual entry = 100% confidence
       category: 'manual',
       manualEntry: true
@@ -998,7 +999,7 @@ router.delete('/ingredient/:name', auth, async (req, res) => {
 
     const beforeLength = session.ingredients.length;
     session.ingredients = session.ingredients.filter(
-      item => item.name.toLowerCase() !== name.toLowerCase()
+      item => item.name.toLowerCase().trim() !== name.toLowerCase().trim()
     );
 
     if (session.ingredients.length === beforeLength) {
@@ -1075,12 +1076,20 @@ router.post('/ingredient/get-recipes', auth, async (req, res) => {
 // @access  Private
 router.delete('/ingredient/session', auth, async (req, res) => {
   try {
+    console.log('🧹 DELETE /api/scan/ingredient/session - Request received');
     const userId = req.user._id.toString();
+    console.log(`🧹 User ID: ${userId}`);
     
     if (ingredientSessions.has(userId)) {
+      const sessionData = ingredientSessions.get(userId);
+      console.log(`🧹 Session data before clear: ${JSON.stringify(sessionData)}`);
       ingredientSessions.delete(userId);
       console.log(`🧹 Cleared ingredient session for user ${userId}`);
+    } else {
+      console.log(`🧹 No session found for user ${userId}`);
     }
+
+    console.log(`🧹 Current sessions count: ${ingredientSessions.size}`);
 
     res.json({
       success: true,

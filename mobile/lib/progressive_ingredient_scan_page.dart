@@ -35,7 +35,20 @@ class _ProgressiveIngredientScanPageState
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    
+    // Load session in background, but don't block the UI
     _loadExistingSession();
+    
+    // Fallback: if loading takes too long, show the main interface anyway
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && _isLoadingSession) {
+        print('⚠️ Loading timeout - showing main interface');
+        setState(() {
+          _isLoadingSession = false;
+          _ingredientList = [];
+        });
+      }
+    });
   }
 
   @override
@@ -47,7 +60,15 @@ class _ProgressiveIngredientScanPageState
   Future<void> _loadExistingSession() async {
     setState(() => _isLoadingSession = true);
     try {
-      final result = await ApiService.getIngredientSession();
+      // Add timeout to prevent infinite loading
+      final result = await ApiService.getIngredientSession().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('⚠️ Session API timeout - proceeding with empty session');
+          return {'success': false, 'message': 'Timeout'};
+        },
+      );
+      print('📦 Session API response: $result');
       if (result['success'] == true) {
         setState(() {
           _ingredientList = List<Map<String, dynamic>>.from(
@@ -55,9 +76,15 @@ class _ProgressiveIngredientScanPageState
           );
         });
         print('📦 Loaded existing session: ${_ingredientList.length} ingredients');
+        print('📦 Ingredient list: $_ingredientList');
       }
     } catch (e) {
       print('⚠️ Could not load existing session: $e');
+      // Ensure we always exit loading state
+      setState(() {
+        _ingredientList = [];
+        _isLoadingSession = false;
+      });
     } finally {
       setState(() => _isLoadingSession = false);
     }
@@ -419,6 +446,9 @@ class _ProgressiveIngredientScanPageState
             result['currentList'] ?? []
           );
         });
+        
+        print('✅ Manual ingredient added - new list length: ${_ingredientList.length}');
+        print('✅ New ingredient list: $_ingredientList');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -483,6 +513,8 @@ class _ProgressiveIngredientScanPageState
   }
 
   Future<void> _clearSession() async {
+    print('🧹 Clear session button pressed');
+    
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -502,19 +534,41 @@ class _ProgressiveIngredientScanPageState
       ),
     );
 
+    print('🧹 User confirmed clear: $confirm');
+
     if (confirm == true) {
       try {
-        await ApiService.clearIngredientSession();
-        setState(() {
-          _ingredientList = [];
-          _lastScannedIngredient = null;
-        });
+        print('🧹 Calling API to clear session...');
+        final result = await ApiService.clearIngredientSession();
+        print('🧹 API response: $result');
+        
+        if (result['success'] == true) {
+          setState(() {
+            _ingredientList = [];
+            _lastScannedIngredient = null;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message'] ?? 'All ingredients cleared!'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          print('🧹 Session cleared successfully');
+        } else {
+          throw Exception(result['message'] ?? 'Failed to clear session');
+        }
       } catch (e) {
+        print('❌ Error clearing session: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Error clearing session: $e'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -612,11 +666,8 @@ class _ProgressiveIngredientScanPageState
                     const Text('Your ingredients:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     ..._ingredientList.map((ing) => Text('• ${ing['name']}')),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Try adding more ingredients or upload some recipes to the database!',
-                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                    ),
+                    
+                    
                   ],
                 ),
                 actions: [
@@ -682,6 +733,8 @@ class _ProgressiveIngredientScanPageState
 
   @override
   Widget build(BuildContext context) {
+    print('🏗️ Building ProgressiveIngredientScanPage - ingredient list length: ${_ingredientList.length}');
+    print('🏗️ Ingredient list: $_ingredientList');
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -689,189 +742,189 @@ class _ProgressiveIngredientScanPageState
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Build Your Ingredient List'),
-        actions: [
-          if (_ingredientList.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep),
-              onPressed: _clearSession,
-              tooltip: 'Clear all',
-            ),
-        ],
       ),
       body: _isLoadingSession
           ? _buildSessionLoadingState()
-          : Column(
+          : Stack(
               children: [
-                // Header section
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    border: Border(
-                      bottom: BorderSide(color: Colors.green.shade200, width: 2),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.shopping_basket,
-                        size: 48,
-                        color: Colors.green.shade700,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _ingredientList.isEmpty
-                            ? 'Scan ingredients one by one'
-                            : '${_ingredientList.length} ingredient${_ingredientList.length == 1 ? '' : 's'} scanned',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade900,
+                Column(
+                  children: [
+                    // Header section
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        border: Border(
+                          bottom: BorderSide(color: Colors.green.shade200, width: 2),
                         ),
                       ),
-                      if (_ingredientList.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Add more or get recipe suggestions',
-                          style: TextStyle(
-                            fontSize: 14,
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.shopping_basket,
+                            size: 48,
                             color: Colors.green.shade700,
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Ingredient list
-                Expanded(
-                  child: _ingredientList.isEmpty
-                      ? _buildEmptyState()
-                      : _buildIngredientList(),
-                ),
-
-                // Bottom action buttons
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.shade300,
-                        offset: const Offset(0, -2),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _isScanning ? null : _showScanOptions,
-                              icon: const Icon(Icons.camera_alt),
-                              label: const Text('Scan'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Colors.green, width: 2),
-                                foregroundColor: Colors.green,
-                              ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _ingredientList.isEmpty
+                                ? 'Scan ingredients one by one'
+                                : '${_ingredientList.length} ingredient${_ingredientList.length == 1 ? '' : 's'} scanned',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade900,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _isScanning ? null : _showAddManualDialog,
-                              icon: const Icon(Icons.edit),
-                              label: const Text('Type'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Colors.green, width: 2),
-                                foregroundColor: Colors.green,
+                          if (_ingredientList.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Add more or get recipe suggestions',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.green.shade700,
                               ),
+                              textAlign: TextAlign.center,
                             ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    // Content area
+                    Expanded(
+                      child: _ingredientList.isEmpty
+                          ? _buildEmptyState()
+                          : _buildIngredientList(),
+                    ),
+
+                    // Bottom action buttons
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.shade300,
+                            offset: const Offset(0, -2),
+                            blurRadius: 6,
                           ),
                         ],
                       ),
-                      if (_ingredientList.length >= 1) ...[
-                        const SizedBox(height: 12),
-                        ScaleTransition(
-                          scale: _ingredientList.length >= 2 ? _pulseAnimation : AlwaysStoppedAnimation(1.0),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _getRecipes,
-                              icon: const Icon(Icons.restaurant_menu, color: Colors.white),
-                              label: Text(
-                                _ingredientList.length >= 2
-                                    ? 'Get Recipe Suggestions (${_ingredientList.length} ingredients)'
-                                    : 'Get Recipe Suggestions',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                padding: const EdgeInsets.symmetric(vertical: 18),
-                                elevation: 4,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                if (_isScanning)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black45,
-                      child: Center(
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                      child: SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
                               children: [
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.green.withOpacity(0.1),
-                                    border: Border.all(color: Colors.green, width: 2),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      color: Colors.green,
-                                      strokeWidth: 3,
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isScanning ? null : _showScanOptions,
+                                    icon: const Icon(Icons.camera_alt),
+                                    label: const Text('Scan'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      side: const BorderSide(color: Colors.green, width: 2),
+                                      foregroundColor: Colors.green,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  '🤖 AI Scanning Ingredient...',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Analyzing image for ingredients',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isScanning ? null : _showAddManualDialog,
+                                    icon: const Icon(Icons.edit),
+                                    label: const Text('Type'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      side: const BorderSide(color: Colors.green, width: 2),
+                                      foregroundColor: Colors.green,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
+                            if (_ingredientList.length >= 1) ...[
+                              const SizedBox(height: 12),
+                              ScaleTransition(
+                                scale: _ingredientList.length >= 2 ? _pulseAnimation : AlwaysStoppedAnimation(1.0),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _getRecipes,
+                                    icon: const Icon(Icons.restaurant_menu, color: Colors.white),
+                                    label: Text(
+                                      _ingredientList.length >= 2
+                                          ? 'Get Recipe Suggestions (${_ingredientList.length} ingredients)'
+                                          : 'Get Recipe Suggestions',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                      elevation: 4,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Scanning overlay
+                if (_isScanning)
+                  Container(
+                    color: Colors.black45,
+                    child: Center(
+                      child: Card(
+                        margin: const EdgeInsets.all(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.green.withOpacity(0.1),
+                                  border: Border.all(color: Colors.green, width: 2),
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.green,
+                                    strokeWidth: 3,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Scanning Ingredient...',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Analyzing image for ingredients',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -883,68 +936,86 @@ class _ProgressiveIngredientScanPageState
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.qr_code_scanner,
-              size: 100,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Start Scanning!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade700,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: MediaQuery.of(context).size.height - 
+                    MediaQuery.of(context).padding.top - 
+                    kToolbarHeight - 
+                    200, // Account for header and bottom buttons
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.qr_code_scanner,
+                size: 80,
+                color: Colors.grey.shade300,
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Scan or type ingredients one by one.\nWhen done, tap "Get Recipes" for suggestions!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-                height: 1.5,
+              const SizedBox(height: 16),
+              Text(
+                'Start Scanning!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.camera_alt, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                const Text('→'),
-                const SizedBox(width: 8),
-                Icon(Icons.add_circle, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                const Text('→'),
-                const SizedBox(width: 8),
-                Icon(Icons.restaurant_menu, color: Colors.green.shade700),
-              ],
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Scan or type ingredients one by one.\nWhen done, tap "Get Recipes" for suggestions!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Compact flow indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.camera_alt, color: Colors.green.shade700, size: 18),
+                  const SizedBox(width: 6),
+                  const Text('→', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Icon(Icons.add_circle, color: Colors.green.shade700, size: 18),
+                  const SizedBox(width: 6),
+                  const Text('→', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Icon(Icons.restaurant_menu, color: Colors.green.shade700, size: 18),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Scan → Add → Get Recipes',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildIngredientList() {
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _ingredientList.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final ingredient = _ingredientList[index];
         final isNew = ingredient['name'] == _lastScannedIngredient;
         
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: isNew ? Colors.green.shade50 : Colors.white,
             border: Border.all(
@@ -965,6 +1036,7 @@ class _ProgressiveIngredientScanPageState
               child: Icon(
                 ingredient['manualEntry'] == true ? Icons.edit : Icons.check_circle,
                 color: Colors.green.shade700,
+                size: 24,
               ),
             ),
             title: Text(

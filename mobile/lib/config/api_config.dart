@@ -3,7 +3,7 @@ class ApiConfig {
   // ========================================
   // 🔧 CHANGE THIS IP ADDRESS WHEN SWITCHING WIFI NETWORKS
   // ========================================
-  static const String BACKEND_IP = '10.185.163.221';
+  static const String BACKEND_IP = '192.168.194.145';
   static const String BACKEND_PORT = '3000';
   
 

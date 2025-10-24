@@ -492,10 +492,10 @@ class _HomePageState extends State<HomePage>
   }
 
   // Navigate to recipe details
-  void _openRecipeDetails(Map<String, dynamic> recipe) {
+  void _openRecipeDetails(Map<String, dynamic> recipe) async {
     try {
       HapticFeedback.selectionClick();
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => RecipeDetailsPage(recipe: recipe),
@@ -505,6 +505,9 @@ class _HomePageState extends State<HomePage>
           _showSnackBar('Unable to open recipe details.');
         }
       });
+      
+      // Refresh recipes to update view counts
+      _loadInitialData();
     } catch (error) {
       _showSnackBar('Error opening recipe details.');
     }
@@ -1275,7 +1278,7 @@ class _HomePageState extends State<HomePage>
                     ),
                     const SizedBox(height: 6),
                     
-                    // Serves and favorite
+                    // Serves and views
                     Row(
                       children: [
                         Icon(Icons.people, size: 12, color: AppTheme.textSecondary),
@@ -1288,17 +1291,21 @@ class _HomePageState extends State<HomePage>
                           ),
                         ),
                         const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.textSecondary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: const Icon(
-                            Icons.favorite_border,
-                            size: 13,
-                            color: AppTheme.textSecondary,
-                          ),
+                        // Views count
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.visibility, size: 12, color: AppTheme.textSecondary),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${recipe['views'] ?? 0}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

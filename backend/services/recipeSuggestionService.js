@@ -70,26 +70,60 @@ class RecipeSuggestionService {
   }
 
   /**
-   * Search database recipes by ingredients
+   * Search database recipes by ingredients - EXACT MATCH ONLY
+   * Only returns recipes that contain ALL scanned ingredients and NO additional ingredients
    */
   async searchDatabaseRecipes(ingredientNames) {
     try {
-      // Create regex patterns for flexible matching
-      const ingredientRegex = ingredientNames.map(name => new RegExp(name, 'i'));
-
-      const recipes = await Recipe.find({
-        isPublished: true,
-        $or: [
-          { 'ingredients.name': { $in: ingredientRegex } },
-          { tags: { $in: ingredientRegex } },
-          { title: { $in: ingredientRegex } }
-        ]
+      console.log(`🔍 Searching for recipes with EXACT ingredient match: ${ingredientNames.join(', ')}`);
+      
+      // Get all published recipes first
+      const allRecipes = await Recipe.find({
+        isPublished: true
       })
         .populate('creator', 'name profileImage')
-        .limit(20)
         .sort({ averageRating: -1, likesCount: -1 });
 
-      const mappedRecipes = recipes.map(recipe => {
+      // Filter recipes to find exact matches
+      const exactMatches = allRecipes.filter(recipe => {
+        const recipeIngredientNames = recipe.ingredients.map(ing => 
+          ing.name.toLowerCase().trim()
+        );
+        
+        const scannedIngredientNames = ingredientNames.map(name => 
+          name.toLowerCase().trim()
+        );
+        
+        // Check if recipe has exactly the same ingredients as scanned
+        const hasAllScannedIngredients = scannedIngredientNames.every(scannedIng => 
+          recipeIngredientNames.some(recipeIng => 
+            recipeIng.includes(scannedIng) || scannedIng.includes(recipeIng)
+          )
+        );
+        
+        // Check if recipe has no additional ingredients beyond what was scanned
+        const hasOnlyScannedIngredients = recipeIngredientNames.every(recipeIng => 
+          scannedIngredientNames.some(scannedIng => 
+            recipeIng.includes(scannedIng) || scannedIng.includes(recipeIng)
+          )
+        );
+        
+        // Recipe must have ALL scanned ingredients AND ONLY those ingredients
+        const isExactMatch = hasAllScannedIngredients && hasOnlyScannedIngredients;
+        
+        if (isExactMatch) {
+          console.log(`✅ Exact match found: ${recipe.title}`);
+          console.log(`   Recipe ingredients: ${recipeIngredientNames.join(', ')}`);
+          console.log(`   Scanned ingredients: ${scannedIngredientNames.join(', ')}`);
+        }
+        
+        return isExactMatch;
+      });
+
+      // Limit to top 20 results
+      const limitedRecipes = exactMatches.slice(0, 20);
+
+      const mappedRecipes = limitedRecipes.map(recipe => {
         const mapped = {
           source: 'database',
           id: recipe._id,
@@ -105,16 +139,17 @@ class RecipeSuggestionService {
           rating: recipe.averageRating,
           averageRating: recipe.averageRating,
           creator: recipe.creator,
-          matchScore: this.calculateMatchScore(recipe, ingredientNames)
+          matchScore: 1.0 // Perfect match since we filtered for exact matches
         };
         
-        console.log(`📋 Mapped recipe: ${mapped.title} (ID: ${mapped.id})`);
+        console.log(`📋 Mapped exact match recipe: ${mapped.title} (ID: ${mapped.id})`);
         console.log(`   Description: ${mapped.description}`);
         console.log(`   Creator: ${mapped.creator?.name || mapped.creator}`);
         
         return mapped;
       });
       
+      console.log(`🎯 Found ${mappedRecipes.length} exact ingredient matches`);
       return mappedRecipes;
 
     } catch (error) {
@@ -155,21 +190,12 @@ class RecipeSuggestionService {
 
   /**
    * Calculate how well a recipe matches the ingredients
+   * For exact matches, this will always return 1.0 since we pre-filter for exact matches
    */
   calculateMatchScore(recipe, ingredientNames) {
-    let matchCount = 0;
-    const recipeIngredients = recipe.ingredients.map(ing => 
-      ing.name.toLowerCase()
-    );
-
-    ingredientNames.forEach(ingredient => {
-      const lowerIngredient = ingredient.toLowerCase();
-      if (recipeIngredients.some(ri => ri.includes(lowerIngredient))) {
-        matchCount++;
-      }
-    });
-
-    return matchCount / ingredientNames.length;
+    // Since we now filter for exact matches in searchDatabaseRecipes,
+    // all recipes that reach this point should have a perfect match score
+    return 1.0;
   }
 
   /**

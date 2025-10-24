@@ -89,8 +89,15 @@ class _MainScaffoldState extends State<MainScaffold>
     
     // Poll for updates every 30 seconds as backup
     _notificationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      _loadNotificationCount();
+_loadNotificationCount();
     });
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh notification count when returning to this screen
+    _loadNotificationCount();
   }
   
   Future<void> _loadNotificationCount() async {
@@ -252,43 +259,46 @@ class _MainScaffoldState extends State<MainScaffold>
             ),
             actions: widget.actions ?? [
               // Notification bell in top right
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryDarkGreen),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const NotificationPage()),
-                      );
-                    },
-                  ),
-                  if (_unreadNotificationCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.error,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Text(
-                          _unreadNotificationCount > 99 ? '99+' : _unreadNotificationCount.toString(),
-                          style: const TextStyle(
-                            color: AppTheme.surfaceWhite,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NotificationPage()),
+                  );
+                },
+                child: Stack(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      child: const Icon(Icons.notifications_outlined, color: AppTheme.primaryDarkGreen),
+                    ),
+                    if (_unreadNotificationCount > 0)
+                      Positioned(
+                        right: 4,
+                        top: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.error,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          textAlign: TextAlign.center,
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Text(
+                            _unreadNotificationCount > 99 ? '99+' : _unreadNotificationCount.toString(),
+                            style: const TextStyle(
+                              color: AppTheme.surfaceWhite,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(width: 8),
             ],

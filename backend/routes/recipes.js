@@ -99,9 +99,38 @@ router.get('/:id', optionalAuth, async (req, res) => {
       });
     }
 
-    // Increment view count
-    recipe.views += 1;
-    await recipe.save();
+    // Debug: Check authentication status
+    console.log(`🔍 Recipe ${recipe._id} access - req.user:`, req.user ? `User ID: ${req.user._id}` : 'No user (anonymous)');
+    
+    // Increment view count only if user hasn't viewed this recipe before
+    if (req.user) {
+      // Check if user has already viewed this recipe (compare as strings)
+      const userId = req.user._id.toString();
+      const hasViewed = recipe.viewedBy && recipe.viewedBy.some(viewerId => viewerId.toString() === userId);
+      
+      console.log(`🔍 User ${userId} - hasViewed: ${hasViewed}, viewedBy array:`, recipe.viewedBy?.map(id => id.toString()) || 'empty');
+      
+      if (!hasViewed) {
+        recipe.views += 1;
+        if (!recipe.viewedBy) {
+          recipe.viewedBy = [];
+        }
+        recipe.viewedBy.push(req.user._id);
+        await recipe.save();
+        console.log(`✅ View tracked for user ${userId} on recipe ${recipe._id}. Total views: ${recipe.views}`);
+        
+        // Verify the save was successful
+        const savedRecipe = await Recipe.findById(recipe._id);
+        console.log(`🔍 Verification - Saved recipe views: ${savedRecipe.views}, viewedBy length: ${savedRecipe.viewedBy.length}`);
+      } else {
+        console.log(`⏭️ User ${userId} already viewed recipe ${recipe._id}. No view increment.`);
+      }
+    } else {
+      // For anonymous users, always increment (no way to track duplicates)
+      recipe.views += 1;
+      await recipe.save();
+      console.log(`👤 Anonymous view tracked for recipe ${recipe._id}. Total views: ${recipe.views}`);
+    }
 
     // Add user interaction data if authenticated
     if (req.user) {
@@ -340,6 +369,18 @@ router.post('/:id/like', auth, async (req, res) => {
     const userId = req.user._id;
     const isLiked = recipe.likes.includes(userId);
 
+    // Track view when user likes (if they haven't viewed before)
+    const userIdStr = userId.toString();
+    const hasViewed = recipe.viewedBy && recipe.viewedBy.some(viewerId => viewerId.toString() === userIdStr);
+    if (!hasViewed) {
+      recipe.views += 1;
+      if (!recipe.viewedBy) {
+        recipe.viewedBy = [];
+      }
+      recipe.viewedBy.push(userId);
+      console.log(`View tracked via like for user ${userIdStr} on recipe ${recipe._id}. Total views: ${recipe.views}`);
+    }
+
     if (isLiked) {
       // Unlike
       recipe.likes.pull(userId);
@@ -394,6 +435,18 @@ router.post('/:id/bookmark', auth, async (req, res) => {
 
     const userId = req.user._id;
     const isBookmarked = recipe.bookmarks.includes(userId);
+
+    // Track view when user bookmarks (if they haven't viewed before)
+    const userIdStr = userId.toString();
+    const hasViewed = recipe.viewedBy && recipe.viewedBy.some(viewerId => viewerId.toString() === userIdStr);
+    if (!hasViewed) {
+      recipe.views += 1;
+      if (!recipe.viewedBy) {
+        recipe.viewedBy = [];
+      }
+      recipe.viewedBy.push(userId);
+      console.log(`View tracked via bookmark for user ${userIdStr} on recipe ${recipe._id}. Total views: ${recipe.views}`);
+    }
 
     if (isBookmarked) {
       // Remove bookmark
@@ -464,6 +517,18 @@ router.post('/:id/rate', auth, [
         success: false,
         message: 'Recipe not found'
       });
+    }
+
+    // Track view when user rates (if they haven't viewed before)
+    const userIdStr = req.user._id.toString();
+    const hasViewed = recipe.viewedBy && recipe.viewedBy.some(viewerId => viewerId.toString() === userIdStr);
+    if (!hasViewed) {
+      recipe.views += 1;
+      if (!recipe.viewedBy) {
+        recipe.viewedBy = [];
+      }
+      recipe.viewedBy.push(req.user._id);
+      console.log(`View tracked via rating for user ${userIdStr} on recipe ${recipe._id}. Total views: ${recipe.views}`);
     }
 
     // Check if user already rated this recipe
@@ -540,6 +605,18 @@ router.post('/:id/comment', auth, [
         success: false,
         message: 'Recipe not found'
       });
+    }
+
+    // Track view when user comments (if they haven't viewed before)
+    const userIdStr = req.user._id.toString();
+    const hasViewed = recipe.viewedBy && recipe.viewedBy.some(viewerId => viewerId.toString() === userIdStr);
+    if (!hasViewed) {
+      recipe.views += 1;
+      if (!recipe.viewedBy) {
+        recipe.viewedBy = [];
+      }
+      recipe.viewedBy.push(req.user._id);
+      console.log(`View tracked via comment for user ${userIdStr} on recipe ${recipe._id}. Total views: ${recipe.views}`);
     }
 
     // Add new comment

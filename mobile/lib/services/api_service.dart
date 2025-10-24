@@ -716,7 +716,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getRecipe(String recipeId) async {
     final response = await http.get(
       Uri.parse('${ApiConfig.safeBaseUrl}/recipes/$recipeId'),
-      headers: _getHeaders(includeAuth: false),
+      headers: _getHeaders(includeAuth: true),
     );
     
     return _handleResponse(response);
