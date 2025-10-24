@@ -34,6 +34,15 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
     _scrollController.addListener(_onScroll);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Only refresh if we have no recipes loaded (initial load)
+    if (!_isLoading && _recipes.isEmpty) {
+      _loadFeed();
+    }
+  }
+
   Future<void> _initializeAndLoadFeed() async {
     // Initialize token first
     await ApiService.initializeToken();
@@ -184,6 +193,7 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
       'rating': (recipe['averageRating'] ?? 0).toDouble(),
       'ratingsCount': recipe['ratingsCount'] ?? recipe['ratings']?.length ?? 0,
       'commentsCount': recipe['commentsCount'] ?? recipe['comments']?.length ?? 0,
+      'views': recipe['views'] ?? 0, // Add views field
       'isLiked': recipe['isLiked'] ?? false,
       'isBookmarked': recipe['isBookmarked'] ?? false,
       'createdAt': recipe['createdAt'],
@@ -233,14 +243,20 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
     await _loadFeed();
   }
 
-  void _openRecipeDetails(Map<String, dynamic> recipe) {
+  void _openRecipeDetails(Map<String, dynamic> recipe) async {
     HapticFeedback.selectionClick();
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => RecipeDetailsPage(recipe: recipe),
       ),
     );
+    
+    // Update view count for this specific recipe without reloading entire feed
+    final recipeId = recipe['id'];
+    if (recipeId != null) {
+      _updateRecipeViewCount(recipeId.toString());
+    }
   }
 
   void _openUserProfile(Map<String, dynamic> recipe) {
@@ -311,6 +327,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
             duration: const Duration(seconds: 1),
           ),
         );
+        
+        // Update view count for this specific recipe without reloading entire feed
+        _updateRecipeViewCount(recipeId);
       } else {
         print('❌ Like request failed: ${response['message']}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -360,6 +379,9 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
             duration: const Duration(seconds: 1),
           ),
         );
+        
+        // Update view count for this specific recipe without reloading entire feed
+        _updateRecipeViewCount(recipeId);
       }
     } catch (e) {
       if (mounted) {
@@ -371,6 +393,33 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
           ),
         );
       }
+    }
+  }
+
+  Future<void> _updateRecipeViewCount(String recipeId) async {
+    try {
+      // Fetch updated recipe data from the server
+      final response = await ApiService.getRecipe(recipeId);
+      
+      if (response['success'] == true && mounted) {
+        final updatedRecipe = response['recipe'] as Map<String, dynamic>?;
+        if (updatedRecipe != null) {
+          setState(() {
+            // Find and update the specific recipe in the list
+            final index = _recipes.indexWhere((r) => r['id'] == recipeId);
+            if (index != -1) {
+              // Update only the view count and other relevant fields
+              _recipes[index]['views'] = updatedRecipe['views'] ?? _recipes[index]['views'];
+              _recipes[index]['likesCount'] = updatedRecipe['likesCount'] ?? _recipes[index]['likesCount'];
+              _recipes[index]['commentsCount'] = updatedRecipe['commentsCount'] ?? _recipes[index]['commentsCount'];
+              _recipes[index]['bookmarksCount'] = updatedRecipe['bookmarksCount'] ?? _recipes[index]['bookmarksCount'];
+              _recipes[index]['rating'] = updatedRecipe['averageRating'] ?? _recipes[index]['rating'];
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print('Error updating recipe view count: $e');
     }
   }
 
@@ -771,60 +820,71 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
                       icon: Icon(
                         recipe['isLiked'] == true ? Icons.favorite : Icons.favorite_border,
                         color: recipe['isLiked'] == true ? Colors.red : AppTheme.textSecondary,
-                        size: 24,
+                        size: 20,
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(width: 4),
                     Text(
                       '${recipe['likesCount']}',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textSecondary,
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 12),
                     // Comments indicator
-                    Icon(Icons.comment_outlined, size: 20, color: AppTheme.textSecondary),
-                    const SizedBox(width: 4),
+                    Icon(Icons.comment_outlined, size: 18, color: AppTheme.textSecondary),
+                    const SizedBox(width: 2),
                     Text(
                       '${recipe['commentsCount'] ?? 0}',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textSecondary,
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 12),
+                    // Views indicator
+                    Icon(Icons.visibility, size: 18, color: AppTheme.textSecondary),
+                    const SizedBox(width: 2),
+                    Text(
+                      '${recipe['views'] ?? 0}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
                     // Rating indicator - always show
                     Icon(
                       Icons.star,
-                      size: 20,
+                      size: 18,
                       color: (recipe['rating'] ?? 0) > 0 ? Colors.amber : AppTheme.textSecondary.withOpacity(0.3),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 2),
                     Text(
                       (recipe['rating'] ?? 0) > 0
-                          ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)} (${recipe['ratingsCount'] ?? 0})'
+                          ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)}'
                           : 'No ratings',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: (recipe['rating'] ?? 0) > 0 
                             ? AppTheme.textSecondary 
                             : AppTheme.textSecondary.withOpacity(0.5),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     // Bookmark button
                     IconButton(
                       onPressed: () => _toggleBookmark(recipe),
                       icon: Icon(
                         recipe['isBookmarked'] == true ? Icons.bookmark : Icons.bookmark_border,
                         color: recipe['isBookmarked'] == true ? AppTheme.primaryDarkGreen : AppTheme.textSecondary,
-                        size: 24,
+                        size: 20,
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),

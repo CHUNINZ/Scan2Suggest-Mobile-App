@@ -175,18 +175,32 @@ router.get('/feed', auth, async (req, res) => {
     const userId = req.user._id;
 
     // Get recipes from all users (excluding current user's own recipes)
+    // Use lean() to get fresh data from database
     const allRecipes = await Recipe.find({
       creator: { $ne: userId }, // Exclude current user's recipes
       isPublished: true
     })
       .populate('creator', 'name profileImage')
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit) * 3); // Get more recipes for better ranking
+      .limit(parseInt(limit) * 3) // Get more recipes for better ranking
+      .lean(); // Use lean() to get fresh data from database
+
+    // Debug: Check if we're getting fresh data
+    if (allRecipes.length > 0) {
+      const firstRecipe = allRecipes[0];
+      console.log(`🔍 Direct DB query - Recipe ${firstRecipe._id} views: ${firstRecipe.views}`);
+      
+      // Also check the specific recipe that was viewed
+      const specificRecipe = await Recipe.findById('68f982dae09b6dc3d4f0a180').lean();
+      if (specificRecipe) {
+        console.log(`🔍 Specific recipe from DB - views: ${specificRecipe.views}, viewedBy: ${specificRecipe.viewedBy?.length || 0}`);
+      }
+    }
 
     // Apply smart ranking algorithm
     const rankedRecipes = allRecipes.map(recipe => {
       let score = 0;
-      const recipeData = recipe.toObject();
+      const recipeData = recipe; // Already a plain object with lean()
       
       
       // Base score from creation time (newer = higher score)
@@ -236,6 +250,12 @@ router.get('/feed', auth, async (req, res) => {
       recipe.likesCount = recipe.likes.length; // Add likes count
       
       recipe.isFromFollowedUser = recipe.creator && followingIds.some(id => id.toString() === recipe.creator._id.toString());
+      
+      // Debug: Log view count for first recipe
+      if (paginatedRecipes.indexOf(recipe) === 0) {
+        console.log(`🔍 Social feed - Recipe ${recipe._id} views: ${recipe.views}, likes: ${recipe.likesCount}`);
+        console.log(`🔍 Full recipe data:`, JSON.stringify(recipe, null, 2));
+      }
       
       // Remove the ranking score from final response
       delete recipe._rankingScore;
@@ -345,22 +365,64 @@ router.get('/trending', async (req, res) => {
         dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    const recipes = await Recipe.find({
+    // First try to get recipes with actual engagement
+    let recipes = await Recipe.find({
       isPublished: true,
-      createdAt: { $gte: dateFilter }
+      createdAt: { $gte: dateFilter },
+      // Only include recipes with actual engagement
+      $or: [
+        { likesCount: { $gte: 1 } },
+        { views: { $gte: 5 } },
+        { averageRating: { $gte: 3.0 } }
+      ]
     })
       .populate('creator', 'name profileImage')
       .sort({
         likesCount: -1,
         views: -1,
-        averageRating: -1
+        averageRating: -1,
+        createdAt: -1
       })
       .skip(skip)
       .limit(parseInt(limit));
 
+    // If not enough trending recipes, fall back to popular recipes from a longer timeframe
+    if (recipes.length < parseInt(limit)) {
+      const extendedDateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
+      
+      const fallbackRecipes = await Recipe.find({
+        isPublished: true,
+        createdAt: { $gte: extendedDateFilter },
+        $or: [
+          { likesCount: { $gte: 1 } },
+          { views: { $gte: 3 } },
+          { averageRating: { $gte: 2.5 } }
+        ]
+      })
+        .populate('creator', 'name profileImage')
+        .sort({
+          likesCount: -1,
+          views: -1,
+          averageRating: -1,
+          createdAt: -1
+        })
+        .limit(parseInt(limit));
+
+      // Combine and deduplicate
+      const existingIds = recipes.map(r => r._id.toString());
+      const newRecipes = fallbackRecipes.filter(r => !existingIds.includes(r._id.toString()));
+      recipes = [...recipes, ...newRecipes].slice(0, parseInt(limit));
+    }
+
     const total = await Recipe.countDocuments({
       isPublished: true,
-      createdAt: { $gte: dateFilter }
+      createdAt: { $gte: dateFilter },
+      // Only include recipes with actual engagement
+      $or: [
+        { likesCount: { $gte: 1 } },
+        { views: { $gte: 5 } },
+        { averageRating: { $gte: 3.0 } }
+      ]
     });
 
     res.json({

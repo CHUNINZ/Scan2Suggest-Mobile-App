@@ -20,6 +20,8 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
   String _description = '';
   String _cookingDuration = '30';
   double _durationSliderValue = 2.0; // Index for slider (0-4 for 5 options)
+  String _selectedCategory = 'main_course';
+  String _selectedDifficulty = 'medium';
   final List<String> _ingredients = [];
   final List<String> _steps = [];
   File? _selectedImage;
@@ -54,6 +56,27 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
     {'value': '30', 'label': '30', 'description': 'Moderate', 'minutes': 30},
     {'value': '45', 'label': '45', 'description': 'Standard', 'minutes': 45},
     {'value': '60', 'label': '>60', 'description': 'Traditional', 'minutes': 60},
+  ];
+  
+  // Category options
+  final List<Map<String, String>> _categoryOptions = [
+    {'value': 'appetizer', 'label': 'Appetizer'},
+    {'value': 'main_course', 'label': 'Main Course'},
+    {'value': 'dessert', 'label': 'Dessert'},
+    {'value': 'beverage', 'label': 'Beverage'},
+    {'value': 'snack', 'label': 'Snack'},
+    {'value': 'soup', 'label': 'Soup'},
+    {'value': 'salad', 'label': 'Salad'},
+    {'value': 'breakfast', 'label': 'Breakfast'},
+    {'value': 'lunch', 'label': 'Lunch'},
+    {'value': 'dinner', 'label': 'Dinner'},
+  ];
+  
+  // Difficulty options
+  final List<Map<String, String>> _difficultyOptions = [
+    {'value': 'easy', 'label': 'Easy'},
+    {'value': 'medium', 'label': 'Medium'},
+    {'value': 'hard', 'label': 'Hard'},
   ];
 
   @override
@@ -240,8 +263,8 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
       final result = await ApiService.createRecipe(
         title: _foodName.trim(),
         description: _description.trim(),
-        category: 'main_course', // Default category
-        difficulty: 'medium', // Default difficulty
+        category: _selectedCategory,
+        difficulty: _selectedDifficulty,
         prepTime: prepTime,
         cookTime: cookTime,
         servings: 4, // Default servings
@@ -417,18 +440,16 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
         );
         
         // Navigate to home and clear upload stack
-        // This will pop all routes until we reach the first route (MainNavigationController)
-        // which contains the home page
         Future.delayed(const Duration(milliseconds: 200), () {
           if (mounted) {
             // Reset the form state
             _resetForm();
             
-            // Pop until we reach the main navigation (home)
-            Navigator.of(context).popUntil((route) {
-              // Check if this is the first route (main navigation)
-              return route.isFirst;
-            });
+            // Navigate back to main navigation and set to home tab (index 0)
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/main',
+              (route) => false,
+            );
           }
         });
       }
@@ -754,6 +775,16 @@ Made with Scan2Suggest App 🇵🇭
           
           // Cooking Duration Section with Slider
           _buildCookingDurationSlider(),
+          
+          const SizedBox(height: 24),
+          
+          // Category Selection
+          _buildCategorySelection(),
+          
+          const SizedBox(height: 24),
+          
+          // Difficulty Selection
+          _buildDifficultySelection(),
         
           const SizedBox(height: 32),
           
@@ -983,6 +1014,119 @@ Made with Scan2Suggest App 🇵🇭
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategorySelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Category *',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceWhite,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.textDisabled),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedCategory,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.primaryDarkGreen),
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+              ),
+              items: _categoryOptions.map((category) {
+                return DropdownMenuItem<String>(
+                  value: category['value'],
+                  child: Text(category['label']!),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedCategory = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDifficultySelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Difficulty Level *',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: _difficultyOptions.map((difficulty) {
+            final isSelected = _selectedDifficulty == difficulty['value'];
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedDifficulty = difficulty['value']!;
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppTheme.primaryDarkGreen : AppTheme.surfaceWhite,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected ? AppTheme.primaryDarkGreen : AppTheme.textDisabled,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        difficulty['value'] == 'easy' ? Icons.sentiment_very_satisfied :
+                        difficulty['value'] == 'medium' ? Icons.sentiment_neutral :
+                        Icons.sentiment_very_dissatisfied,
+                        color: isSelected ? AppTheme.surfaceWhite : AppTheme.textSecondary,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        difficulty['label']!,
+                        style: TextStyle(
+                          color: isSelected ? AppTheme.surfaceWhite : AppTheme.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

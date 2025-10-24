@@ -190,8 +190,8 @@ class RoboflowService {
       'butter': 'Butter'
     };
     
-    const cleanName = className.toLowerCase().replace(/[_-]/g, '_');
-    return ingredientMap[cleanName] || this.capitalizeWords(className);
+    const cleanName = className.toLowerCase().trim().replace(/[_-]/g, '_');
+    return ingredientMap[cleanName] || this.capitalizeWords(className.trim());
   }
 
   capitalizeWords(str) {

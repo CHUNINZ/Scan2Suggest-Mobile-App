@@ -38,7 +38,19 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   bool _loadingTrending = false;
   
   // Available filter options
-  final List<String> _categories = ['All', 'Main Course', 'Dessert', 'Snack', 'Beverage', 'Soup', 'Salad'];
+  final List<Map<String, String>> _categories = [
+    {'value': 'all', 'label': 'All'},
+    {'value': 'main_course', 'label': 'Main Course'},
+    {'value': 'dessert', 'label': 'Dessert'},
+    {'value': 'snack', 'label': 'Snack'},
+    {'value': 'beverage', 'label': 'Beverage'},
+    {'value': 'soup', 'label': 'Soup'},
+    {'value': 'salad', 'label': 'Salad'},
+    {'value': 'appetizer', 'label': 'Appetizer'},
+    {'value': 'breakfast', 'label': 'Breakfast'},
+    {'value': 'lunch', 'label': 'Lunch'},
+    {'value': 'dinner', 'label': 'Dinner'},
+  ];
   final List<String> _difficulties = ['Easy', 'Medium', 'Hard'];
   
   @override
@@ -174,7 +186,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     try {
       final response = await ApiService.getRecipes(
         search: query,
-        category: _selectedCategory != null && _selectedCategory != 'All' ? _selectedCategory : null,
+        category: _selectedCategory != null && _selectedCategory != 'all' ? _selectedCategory : null,
         limit: 50,
       );
       
@@ -368,16 +380,16 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                         spacing: 8,
                         runSpacing: 8,
                         children: _categories.map((category) {
-                          final isSelected = _selectedCategory == category || (category == 'All' && _selectedCategory == null);
+                          final isSelected = _selectedCategory == category['value'] || (category['value'] == 'all' && _selectedCategory == null);
                           return ChoiceChip(
-                            label: Text(category),
+                            label: Text(category['label']!),
                             selected: isSelected,
                             onSelected: (selected) {
                               setModalState(() {
-                                _selectedCategory = category == 'All' ? null : category;
+                                _selectedCategory = category['value'] == 'all' ? null : category['value'];
                               });
                               setState(() {
-                                _selectedCategory = category == 'All' ? null : category;
+                                _selectedCategory = category['value'] == 'all' ? null : category['value'];
                               });
                             },
                             selectedColor: AppTheme.primaryDarkGreen.withOpacity(0.2),
@@ -875,13 +887,18 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         ],
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => RecipeDetailsPage(recipe: recipe),
             ),
           );
+          
+          // Refresh search results to update view counts
+          if (_searchController.text.isNotEmpty) {
+            _performSearch(_searchController.text);
+          }
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
@@ -963,6 +980,17 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                         const SizedBox(width: 4),
                         Text(
                           recipe['time'],
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Views count
+                        const Icon(Icons.visibility, size: 14, color: AppTheme.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${recipe['views'] ?? 0}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppTheme.textSecondary,
