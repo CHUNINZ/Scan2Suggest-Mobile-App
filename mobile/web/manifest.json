@@ -1,6 +1,6 @@
 {
-    "name": "Scan2Suggest_app",
-    "short_name": "Scan2Suggest_app",
+    "name": "Scan2Suggest",
+    "short_name": "Scan2Suggest",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

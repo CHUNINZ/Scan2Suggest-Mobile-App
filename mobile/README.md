@@ -1,4 +1,4 @@
-# Scan2Suggest_app
+# Scan2Suggest
 
 A new Flutter project.
 

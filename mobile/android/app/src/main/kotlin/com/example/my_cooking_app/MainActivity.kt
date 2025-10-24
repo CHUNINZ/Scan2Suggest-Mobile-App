@@ -1,4 +1,4 @@
-package com.example.Scan2Suggest_app
+package com.example.Scan2Suggest
 
 import io.flutter.embedding.android.FlutterActivity
 
