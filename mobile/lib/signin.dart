@@ -418,78 +418,9 @@ class _SignInState extends State<SignIn> with TickerProviderStateMixin {
                     
                     const SizedBox(height: 32),
                     
-                    // Or continue with text
-                    AnimatedBuilder(
-                      animation: _formController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, _formSlideAnimation.value),
-                          child: Opacity(
-                            opacity: _formFadeAnimation.value,
-                            child: Text(
-                              'Or continue with',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                     
-                    const SizedBox(height: 24),
                     
-                    // Google login button
-                    AnimatedBuilder(
-                      animation: _formController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, _formSlideAnimation.value),
-                          child: Opacity(
-                            opacity: _formFadeAnimation.value,
-                            child: GestureDetector(
-                              onTap: () {
-                                _showSnackBar('Google login functionality would go here');
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 19),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFFF5842),
-                                      Color(0xFFE63A1A),
-                                    ],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ),
-                                  borderRadius: BorderRadius.circular(32),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF5842).withOpacity(0.4),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.g_mobiledata, color: AppTheme.surfaceWhite, size: 24),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Google',
-                                      style: Theme.of(context).textTheme.labelLarge,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                     
-                    const Spacer(flex: 3),
                     
                     // Sign up link
                     AnimatedBuilder(

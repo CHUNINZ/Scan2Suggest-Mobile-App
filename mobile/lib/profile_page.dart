@@ -541,17 +541,26 @@ class _ProfilePageState extends State<ProfilePage> {
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         color: AppTheme.primaryDarkGreen,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              _buildProfileHeader(),
-              _buildStatsSection(),
-              _buildTabBar(),
-              _buildRecipesSection(),
-              const SizedBox(height: 100), // Bottom padding
-            ],
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: Column(
+                  children: [
+                    _buildProfileHeader(),
+                    _buildStatsSection(),
+                    _buildTabBar(),
+                    _buildRecipesSection(),
+                    const SizedBox(height: 100), // Bottom padding
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -603,11 +612,14 @@ class _ProfilePageState extends State<ProfilePage> {
           // Username
           Text(
             profile['name'] ?? 'User',
-            style: const TextStyle(
-              fontSize: 24,
+            style: TextStyle(
+              fontSize: MediaQuery.of(context).size.width < 400 ? 20 : 24,
               fontWeight: FontWeight.bold,
               color: AppTheme.textPrimary,
             ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           
           const SizedBox(height: 8),
@@ -616,10 +628,12 @@ class _ProfilePageState extends State<ProfilePage> {
           Text(
             profile['bio'] ?? 'Food lover 🍴',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: MediaQuery.of(context).size.width < 400 ? 14 : 16,
               color: AppTheme.textSecondary,
             ),
             textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
           
           const SizedBox(height: 8),
@@ -630,11 +644,15 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Icon(Icons.location_on, size: 16, color: AppTheme.textSecondary),
               const SizedBox(width: 4),
-              Text(
-                profile['location'] ?? 'Location not set',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
+              Flexible(
+                child: Text(
+                  profile['location'] ?? 'Location not set',
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width < 400 ? 12 : 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -697,25 +715,31 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatItem(
-            'Recipes', 
-            profile['recipesCount']?.toString() ?? '0',
-            onTap: () {
-              // Show user's recipes (already shown in the tab)
-              setState(() => _showRecipes = true);
-            },
+          Expanded(
+            child: _buildStatItem(
+              'Recipes', 
+              profile['recipesCount']?.toString() ?? '0',
+              onTap: () {
+                // Show user's recipes (already shown in the tab)
+                setState(() => _showRecipes = true);
+              },
+            ),
           ),
-          _buildStatItem(
-            'Followers', 
-            profile['followersCount']?.toString() ?? '0',
-            onTap: () => _showFollowersList(),
+          Expanded(
+            child: _buildStatItem(
+              'Followers', 
+              profile['followersCount']?.toString() ?? '0',
+              onTap: () => _showFollowersList(),
+            ),
           ),
-          _buildStatItem(
-            'Following', 
-            profile['followingCount']?.toString() ?? '0',
-            onTap: () => _showFollowingList(),
+          Expanded(
+            child: _buildStatItem(
+              'Following', 
+              profile['followingCount']?.toString() ?? '0',
+              onTap: () => _showFollowingList(),
+            ),
           ),
         ],
       ),
@@ -1038,8 +1062,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     
                     const SizedBox(height: 6),
                     
-                    // Comments and rating - responsive layout
-                    Flexible(
+                    // Comments and rating - responsive layout with overflow protection
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -1054,7 +1078,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 color: AppTheme.textSecondary,
                               ),
                               SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
-                              Flexible(
+                              Expanded(
                                 child: Text(
                                   '${recipe['commentsCount'] ?? 0}',
                                   style: TextStyle(
@@ -1077,7 +1101,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 color: (recipe['rating'] ?? 0) > 0 ? Colors.amber : AppTheme.textSecondary.withOpacity(0.5),
                               ),
                               SizedBox(width: MediaQuery.of(context).size.width < 400 ? 2 : 4),
-                              Flexible(
+                              Expanded(
                                 child: Text(
                                   (recipe['rating'] ?? 0) > 0
                                       ? '${(recipe['rating'] ?? 0).toStringAsFixed(1)}'

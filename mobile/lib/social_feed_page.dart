@@ -37,8 +37,8 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only refresh if we have no recipes loaded (initial load)
-    if (!_isLoading && _recipes.isEmpty) {
+    // Refresh feed when returning to this page to get updated profile images
+    if (!_isLoading && _recipes.isNotEmpty) {
       _loadFeed();
     }
   }

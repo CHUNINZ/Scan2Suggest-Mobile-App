@@ -64,6 +64,7 @@ flutter:
     - assets/images/image11.png
     - assets/images/image12.png
     - assets/images/image13.png
+    - assets/images/logo.png
   
   # App fonts (optional - uncomment if you want custom fonts)
   # fonts:

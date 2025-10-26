@@ -34,6 +34,15 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh users when returning to this page to get updated profile images
+    if (!_isLoading && _users.isNotEmpty) {
+      _refreshUsers();
+    }
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -143,9 +152,9 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
     await _loadUsers();
   }
 
-  void _openUserProfile(Map<String, dynamic> user) {
+  void _openUserProfile(Map<String, dynamic> user) async {
     HapticFeedback.selectionClick();
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => UserProfilePage(
@@ -155,6 +164,9 @@ class _DiscoverPageState extends State<DiscoverPage> with AutomaticKeepAliveClie
         ),
       ),
     );
+    
+    // Refresh users when returning from profile to get updated profile images
+    _refreshUsers();
   }
 
   Future<void> _toggleFollow(String userId) async {

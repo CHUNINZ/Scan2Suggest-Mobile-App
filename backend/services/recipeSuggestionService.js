@@ -1,5 +1,6 @@
 const Recipe = require('../models/Recipe');
 const mealDbRecipeService = require('./mealDbRecipeService');
+const spoonacularRecipeService = require('./spoonacularRecipeService');
 
 class RecipeSuggestionService {
   constructor() {
@@ -32,20 +33,28 @@ class RecipeSuggestionService {
       // Search our database for recipes containing these ingredients
       const dbRecipes = await this.searchDatabaseRecipes(ingredientNames);
       
-      // ❌ TheMealDB suggestions disabled - only showing database recipes
-      // let externalRecipes = [];
-      // if (ingredientNames.length > 0) {
-      //   try {
-      //     const mainIngredient = ingredientNames[0];
-      //     console.log(`🌐 Searching TheMealDB for: ${mainIngredient}`);
-      //     externalRecipes = await this.searchMealDbRecipes(mainIngredient);
-      //   } catch (e) {
-      //     console.log('⚠️ External recipe search failed:', e.message);
-      //   }
-      // }
+      // Search Spoonacular for additional recipe suggestions
+      let externalRecipes = [];
+      if (ingredientNames.length > 0) {
+        try {
+          const mainIngredient = ingredientNames[0];
+          console.log(`🌐 Searching Spoonacular for: ${mainIngredient}`);
+          externalRecipes = await this.searchSpoonacularRecipes(mainIngredient);
+        } catch (e) {
+          console.log('⚠️ Spoonacular recipe search failed:', e.message);
+          // Fallback to TheMealDB if Spoonacular fails
+          try {
+            const mainIngredient = ingredientNames[0];
+            console.log(`🌐 Fallback: Searching TheMealDB for: ${mainIngredient}`);
+            externalRecipes = await this.searchMealDbRecipes(mainIngredient);
+          } catch (e2) {
+            console.log('⚠️ TheMealDB fallback also failed:', e2.message);
+          }
+        }
+      }
 
-      // Only use database recipes (no external sources)
-      const allSuggestions = this.rankSuggestions(dbRecipes, [], ingredientNames);
+      // Combine database and external recipes
+      const allSuggestions = this.rankSuggestions(dbRecipes, externalRecipes, ingredientNames);
 
       console.log(`✅ Found ${allSuggestions.length} recipe suggestions`);
 
@@ -159,7 +168,46 @@ class RecipeSuggestionService {
   }
 
   /**
-   * Search TheMealDB for recipes
+   * Search Spoonacular for recipes (with automatic TheMealDB fallback)
+   */
+  async searchSpoonacularRecipes(ingredientName) {
+    try {
+      console.log(`🍽️ Searching Spoonacular for recipes with: ${ingredientName}`);
+      
+      const recipeData = await spoonacularRecipeService.getRecipeForFood(ingredientName);
+      
+      // Check if Spoonacular returned null (limit reached)
+      if (recipeData === null) {
+        console.log('⚠️ Spoonacular limit reached, automatically falling back to TheMealDB...');
+        return await this.searchMealDbRecipes(ingredientName);
+      }
+      
+      if (recipeData && recipeData.candidates) {
+        const text = recipeData.candidates[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          // Parse the text to extract recipe info
+          return [{
+            source: 'spoonacular',
+            id: `spoonacular_${Date.now()}`,
+            title: recipeData.title || `Recipe for ${ingredientName}`,
+            description: 'Recipe from Spoonacular - Clear step-by-step instructions',
+            image: recipeData.image || null,
+            recipeText: text,
+            matchScore: 0.8, // Higher score than TheMealDB due to better quality
+            readyInMinutes: recipeData.readyInMinutes,
+            servings: recipeData.servings
+          }];
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Spoonacular recipe search error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search TheMealDB for recipes (fallback)
    */
   async searchMealDbRecipes(ingredientName) {
     try {
@@ -236,7 +284,20 @@ class RecipeSuggestionService {
         };
       }
 
-      // Try TheMealDB
+      // Try Spoonacular first
+      const spoonacularRecipe = await spoonacularRecipeService.getRecipeForFood(recipeName);
+      if (spoonacularRecipe) {
+        return {
+          success: true,
+          recipe: {
+            source: 'spoonacular',
+            title: recipeName,
+            data: spoonacularRecipe
+          }
+        };
+      }
+
+      // Fallback to TheMealDB
       const externalRecipe = await mealDbRecipeService.getRecipeForFood(recipeName);
       if (externalRecipe) {
         return {

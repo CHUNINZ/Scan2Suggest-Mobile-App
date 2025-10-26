@@ -7,9 +7,9 @@ class NetworkDiscovery {
   /// Automatically discover the backend server on the local network
   static Future<String?> discoverBackendUrl() async {
     // First try the known backend IP directly (highest priority)
-    if (await _testUrl('http://192.168.194.133:3000/api')) {
-      print('✅ Found backend at known IP: 192.168.194.133:3000');
-      return 'http://192.168.194.133:3000/api';
+    if (await _testUrl('http://10.12.3.221:3000/api')) {
+      print('✅ Found backend at known IP: 10.12.3.221:3000');
+      return 'http://10.12.3.221:3000/api';
     }
     
     // Try predefined URLs from ApiConfig (second priority)
