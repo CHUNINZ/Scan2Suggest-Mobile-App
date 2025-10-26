@@ -55,6 +55,8 @@ app.use(cors({
       'http://127.0.0.1:62423',
       'http://192.168.194.133:3000',
       'http://192.168.194.133:62423',
+      'http://10.12.3.221:3000',
+      'http://10.12.3.221:62423',
     ];
     
     // Allow any localhost port
@@ -63,7 +65,7 @@ app.use(cors({
     }
     
     // Allow local network IPs
-    if (origin.includes('192.168.194.133')) {
+    if (origin.includes('192.168.194.133') || origin.includes('10.12.3.221')) {
       return callback(null, true);
     }
     

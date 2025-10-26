@@ -1,4 +1,5 @@
 const mealDbRecipeService = require('./mealDbRecipeService');
+const spoonacularRecipeService = require('./spoonacularRecipeService');
 const Recipe = require('../models/Recipe');
 
 class RecipeService {
@@ -26,9 +27,29 @@ class RecipeService {
         return this.formatDatabaseRecipe(dbRecipe);
       }
 
-      // If not in database, get from TheMealDB
-      console.log('🌐 Fetching from TheMealDB...');
-      const externalRecipe = await mealDbRecipeService.getRecipeForFood(foodName);
+      // If not in database, get from Spoonacular (with automatic TheMealDB fallback)
+      console.log('🌐 Fetching from Spoonacular...');
+      let externalRecipe = null;
+      try {
+        externalRecipe = await spoonacularRecipeService.getRecipeForFood(foodName);
+        
+        // Check if Spoonacular returned null (limit reached)
+        if (externalRecipe === null) {
+          console.log('⚠️ Spoonacular limit reached, automatically falling back to TheMealDB...');
+          externalRecipe = await mealDbRecipeService.getRecipeForFood(foodName);
+          console.log('✅ Recipe retrieved from TheMealDB fallback');
+        } else {
+          console.log('✅ Recipe retrieved from Spoonacular');
+        }
+      } catch (e) {
+        console.log('⚠️ Spoonacular failed, trying TheMealDB fallback...');
+        try {
+          externalRecipe = await mealDbRecipeService.getRecipeForFood(foodName);
+          console.log('✅ Recipe retrieved from TheMealDB fallback');
+        } catch (e2) {
+          console.error('❌ Both APIs failed:', e2.message);
+        }
+      }
       
       return externalRecipe || this.generateDefaultRecipe(foodName);
 
@@ -61,7 +82,7 @@ class RecipeService {
         }
       }
 
-      // Fallback to TheMealDB for random recipe
+      // Fallback to Spoonacular for random recipe (with TheMealDB fallback)
       const filipinoFoods = [
         'Adobo', 'Sinigang', 'Kare-Kare', 'Lechon', 'Lumpia',
         'Pancit', 'Sisig', 'Bicol Express', 'Dinuguan', 'Bulalo'
@@ -70,7 +91,28 @@ class RecipeService {
       const randomFood = filipinoFoods[Math.floor(Math.random() * filipinoFoods.length)];
       console.log(`🌐 Fetching random recipe: ${randomFood}`);
       
-      const externalRecipe = await mealDbRecipeService.getRecipeForFood(randomFood);
+      let externalRecipe = null;
+      try {
+        externalRecipe = await spoonacularRecipeService.getRecipeForFood(randomFood);
+        
+        // Check if Spoonacular returned null (limit reached)
+        if (externalRecipe === null) {
+          console.log('⚠️ Spoonacular limit reached, automatically falling back to TheMealDB...');
+          externalRecipe = await mealDbRecipeService.getRecipeForFood(randomFood);
+          console.log('✅ Random recipe retrieved from TheMealDB fallback');
+        } else {
+          console.log('✅ Random recipe retrieved from Spoonacular');
+        }
+      } catch (e) {
+        console.log('⚠️ Spoonacular failed, trying TheMealDB fallback...');
+        try {
+          externalRecipe = await mealDbRecipeService.getRecipeForFood(randomFood);
+          console.log('✅ Random recipe retrieved from TheMealDB fallback');
+        } catch (e2) {
+          console.error('❌ Both APIs failed:', e2.message);
+        }
+      }
+      
       return externalRecipe || this.generateDefaultRecipe(randomFood);
 
     } catch (error) {

@@ -6,6 +6,7 @@ const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const roboflowService = require('../services/roboflowService');
 const mealDbRecipeService = require('../services/mealDbRecipeService');
+const spoonacularRecipeService = require('../services/spoonacularRecipeService');
 const ingredientDetectionService = require('../services/ingredientDetectionService');
 const recipeSuggestionService = require('../services/recipeSuggestionService');
 const recipeService = require('../services/recipeService');
@@ -60,16 +61,31 @@ router.post('/analyze', auth, upload.memoryUpload.single('scanImage'), [
       const detectedItems = await roboflowService.analyzeFood(req.file.buffer, scanType);
       const processingTime = Date.now() - startTime;
 
-      // If a food is detected, get recipe from TheMealDB
+      // If a food is detected, get recipe from Spoonacular (with automatic TheMealDB fallback)
       let aiRecipe = null;
       if (detectedItems.length > 0 && detectedItems[0].name) {
         try {
-          console.log(`🍽️ Getting recipe from TheMealDB: ${detectedItems[0].name}`);
-          aiRecipe = await mealDbRecipeService.getRecipeForFood(detectedItems[0].name);
-          console.log('✅ Recipe retrieved successfully');
+          console.log(`🍽️ Getting recipe from Spoonacular: ${detectedItems[0].name}`);
+          aiRecipe = await spoonacularRecipeService.getRecipeForFood(detectedItems[0].name);
+          
+          // Check if Spoonacular returned null (limit reached or no results)
+          if (aiRecipe === null) {
+            console.log('🔄 Spoonacular unavailable (limit reached or no results), automatically falling back to TheMealDB...');
+            aiRecipe = await mealDbRecipeService.getRecipeForFood(detectedItems[0].name);
+            console.log('✅ Recipe retrieved successfully from TheMealDB fallback');
+          } else {
+            console.log('✅ Recipe retrieved successfully from Spoonacular');
+          }
         } catch(e) {
-          console.error('❌ Recipe API error:', e.message);
-          aiRecipe = { error: e.message };
+          console.error('❌ Spoonacular API error:', e.message);
+          console.log('🔄 Falling back to TheMealDB...');
+          try {
+            aiRecipe = await mealDbRecipeService.getRecipeForFood(detectedItems[0].name);
+            console.log('✅ Recipe retrieved successfully from TheMealDB fallback');
+          } catch(e2) {
+            console.error('❌ TheMealDB fallback also failed:', e2.message);
+            aiRecipe = { error: e2.message };
+          }
         }
       }
 
