@@ -3,28 +3,30 @@ const path = require('path');
 const fs = require('fs');
 const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { saveBuffer } = require('../services/gridfsService');
 
 const router = express.Router();
 
 // @route   POST /api/upload/profile
 // @desc    Upload profile image
 // @access  Private
-router.post('/profile', auth, upload.diskUpload.single('profileImage'), async (req, res) => {
+router.post('/profile', auth, upload.memoryUpload.single('profileImage'), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
         message: 'No image file provided'
       });
     }
 
-    const imageUrl = `/uploads/profiles/${req.file.filename}`;
+    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
+    const imageUrl = `/files/${fileId.toString()}`;
 
     res.json({
       success: true,
       message: 'Profile image uploaded successfully',
       imageUrl,
-      filename: req.file.filename
+      fileId
     });
   } catch (error) {
     console.error('Upload profile image error:', error);
@@ -38,7 +40,7 @@ router.post('/profile', auth, upload.diskUpload.single('profileImage'), async (r
 // @route   POST /api/upload/recipe
 // @desc    Upload recipe images
 // @access  Private
-router.post('/recipe', auth, upload.diskUpload.array('recipeImages', 5), async (req, res) => {
+router.post('/recipe', auth, upload.memoryUpload.array('recipeImages', 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -47,17 +49,16 @@ router.post('/recipe', auth, upload.diskUpload.array('recipeImages', 5), async (
       });
     }
 
-    const imageUrls = req.files.map(file => ({
-      url: `/uploads/recipes/${file.filename}`,
-      filename: file.filename,
-      originalName: file.originalname,
-      size: file.size
-    }));
+    const images = [];
+    for (const file of req.files) {
+      const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
+      images.push({ url: `/files/${fileId.toString()}`, fileId });
+    }
 
     res.json({
       success: true,
-      message: `${req.files.length} recipe image(s) uploaded successfully`,
-      images: imageUrls
+      message: `${images.length} recipe image(s) uploaded successfully`,
+      images
     });
   } catch (error) {
     console.error('Upload recipe images error:', error);
@@ -71,23 +72,23 @@ router.post('/recipe', auth, upload.diskUpload.array('recipeImages', 5), async (
 // @route   POST /api/upload/scan
 // @desc    Upload scan image
 // @access  Private
-router.post('/scan', auth, upload.diskUpload.single('scanImage'), async (req, res) => {
+router.post('/scan', auth, upload.memoryUpload.single('scanImage'), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
         message: 'No image file provided'
       });
     }
 
-    const imageUrl = `/uploads/scans/${req.file.filename}`;
+    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
+    const imageUrl = `/files/${fileId.toString()}`;
 
     res.json({
       success: true,
       message: 'Scan image uploaded successfully',
       imageUrl,
-      filename: req.file.filename,
-      size: req.file.size
+      fileId
     });
   } catch (error) {
     console.error('Upload scan image error:', error);

@@ -24,6 +24,7 @@ const scanRoutes = require('./routes/scan');
 const uploadRoutes = require('./routes/upload');
 const socialRoutes = require('./routes/social');
 const notificationRoutes = require('./routes/notifications');
+const filesRoutes = require('./routes/files');
 
 // Security middleware
 app.use(helmet());
@@ -91,8 +92,36 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Static files (use absolute path to avoid cwd issues)
+const path = require('path');
+const uploadsDir = path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsDir, {
+  fallthrough: true,
+  etag: true,
+  maxAge: '7d',
+}));
+
+// Back-compat: if a file under /uploads/* is missing on disk, try to stream from GridFS by filename
+const { GridFSBucket } = require('mongodb');
+app.get('/uploads/:type/:filename', async (req, res, next) => {
+  try {
+    const fsPath = path.join(uploadsDir, req.params.type, req.params.filename);
+    if (fs.existsSync(fsPath)) return next(); // let static middleware serve it
+
+    const db = mongoose.connection.db;
+    if (!db) return res.status(404).end();
+    const files = db.collection('uploads.files');
+    const file = await files.findOne({ filename: req.params.filename });
+    if (!file) return res.status(404).end();
+
+    const bucket = new GridFSBucket(db, { bucketName: 'uploads' });
+    res.setHeader('Content-Type', file.contentType || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    bucket.openDownloadStream(file._id).on('error', () => res.status(404).end()).pipe(res);
+  } catch (e) {
+    return res.status(404).end();
+  }
+});
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/start_cooking', {
@@ -127,6 +156,8 @@ app.use('/api/scan', require('./routes/scan'));
 app.use('/api/upload', require('./routes/upload')); // FIXED: Added missing upload route
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/social', require('./routes/social'));
+// GridFS file streaming
+app.use('/files', filesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

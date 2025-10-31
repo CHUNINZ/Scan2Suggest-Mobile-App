@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
-import '../utils/network_discovery.dart';
 import '../utils/error_messages.dart';
 import '../utils/performance_monitor.dart';
 import 'socket_service.dart';
@@ -68,29 +67,9 @@ class ApiService {
       }
     }
     
-    // Only try network discovery if predefined URLs fail
+    // Do not auto-discover in multi-device scenarios; stick to configured IP.
     if (ApiConfig.enableLogging) {
-      print('⚠️ Predefined URLs failed, trying network discovery...');
-    }
-    
-    try {
-      String? discoveredUrl = await NetworkDiscovery.discoverBackendUrl();
-      
-      if (discoveredUrl != null) {
-        ApiConfig.setWorkingBaseUrl(discoveredUrl);
-        if (ApiConfig.enableLogging) {
-          print('✅ Auto-discovered backend at: $discoveredUrl');
-        }
-        return true;
-      }
-    } catch (e) {
-      if (ApiConfig.enableLogging) {
-        print('⚠️ Network discovery failed: $e');
-      }
-    }
-    
-    if (ApiConfig.enableLogging) {
-      print('❌ All connection attempts failed');
+      print('❌ Connection attempts to configured URLs failed.');
     }
     return false;
   }

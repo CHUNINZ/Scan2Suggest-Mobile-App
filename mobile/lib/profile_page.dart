@@ -276,7 +276,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final imageStr = image.toString();
     if (imageStr.startsWith('http')) return imageStr;
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
-    return '$baseUrl$imageStr';
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath';
   }
 
   String _formatDate(String? dateString) {

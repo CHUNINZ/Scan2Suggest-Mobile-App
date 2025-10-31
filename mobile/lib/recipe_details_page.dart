@@ -768,7 +768,8 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     
     // Otherwise, construct full URL from base URL
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', ''); // Remove /api suffix
-    return '$baseUrl$imageStr'; // imageStr should start with /uploads/...
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath'; // ensure leading slash
   }
 
   String _getCreatorInitial() {

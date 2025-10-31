@@ -211,7 +211,8 @@ class _SocialFeedPageState extends State<SocialFeedPage> with AutomaticKeepAlive
     }
     
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
-    return '$baseUrl$imageStr';
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath';
   }
 
   String _getTimeAgo(dynamic createdAt) {

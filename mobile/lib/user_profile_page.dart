@@ -301,7 +301,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
     
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
-    return '$baseUrl$imageStr';
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath';
   }
 
   String _formatJoinDate(dynamic createdAt) {
