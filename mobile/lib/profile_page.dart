@@ -235,7 +235,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final transformedRecipe = {
         'id': recipe['_id'] ?? recipe['id'],
         'name': recipe['title'] ?? recipe['name'] ?? 'Untitled Recipe',
-        'type': _mapCategoryToType(recipe['category'] ?? 'Food'),
+        'type': recipe['category'] ?? 'Food',
         'time': '${totalTime} mins',
         'likes': recipe['likesCount'] ?? (recipe['likes'] as List?)?.length ?? 0,
         'likesCount': recipe['likesCount'] ?? (recipe['likes'] as List?)?.length ?? 0,
@@ -264,15 +264,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }).toList();
   }
 
-  String _mapCategoryToType(String category) {
-    final lowerCategory = category.toLowerCase();
-    if (lowerCategory.contains('drink') || lowerCategory.contains('beverage')) {
-      return 'Drink';
-    } else if (lowerCategory.contains('snack') || lowerCategory.contains('appetizer')) {
-      return 'Snack';
-    }
-    return 'Food';
-  }
+  // Removed unused category-to-type mapping; we now display the actual category
 
   String _capitalizeDifficulty(String difficulty) {
     if (difficulty.isEmpty) return 'Medium';

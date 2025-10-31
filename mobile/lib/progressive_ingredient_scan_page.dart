@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'services/api_service.dart';
+import 'ingredient_asset_picker.dart';
 import 'recipe_details_page.dart';
 import 'config/api_config.dart';
 
@@ -244,7 +247,7 @@ class _ProgressiveIngredientScanPageState
   }
 
   Future<void> _showScanOptions() async {
-    final source = await showModalBottomSheet<ImageSource>(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -285,7 +288,10 @@ class _ProgressiveIngredientScanPageState
                 ),
                 title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: const Text('Use camera to scan ingredient'),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
+                onTap: () {
+                  Navigator.pop(context);
+                  _scanIngredient(ImageSource.camera);
+                },
               ),
               const SizedBox(height: 8),
               ListTile(
@@ -297,9 +303,12 @@ class _ProgressiveIngredientScanPageState
                   ),
                   child: Icon(Icons.photo_library, color: Colors.blue.shade700),
                 ),
-                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Select existing photo'),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
+                title: const Text('Choose from Ingredients', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Pick a sample ingredient image'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickIngredientFromAssets();
+                },
               ),
               const SizedBox(height: 8),
             ],
@@ -307,10 +316,6 @@ class _ProgressiveIngredientScanPageState
         ),
       ),
     );
-
-    if (source != null) {
-      await _scanIngredient(source);
-    }
   }
 
   Future<void> _scanIngredient(ImageSource source) async {
@@ -389,6 +394,96 @@ class _ProgressiveIngredientScanPageState
         );
       }
     }
+  }
+
+  Future<void> _pickIngredientFromAssets() async {
+    try {
+      final String? assetPath = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const IngredientAssetPickerPage()),
+      );
+      if (assetPath == null) return;
+      await _scanIngredientFromAsset(assetPath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _scanIngredientFromAsset(String assetPath) async {
+    try {
+      setState(() {
+        _isScanning = true;
+        _lastScannedIngredient = null;
+      });
+
+      final fileName = assetPath.split('/').last;
+      final ingredientName = _nameFromFileName(fileName);
+
+      final result = await ApiService.addManualIngredient(ingredientName);
+
+      setState(() => _isScanning = false);
+
+      if (result['success'] == true) {
+        setState(() {
+          _lastScannedIngredient = ingredientName;
+          _ingredientList = List<Map<String, dynamic>>.from(
+            result['currentList'] ?? []
+          );
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('✓ Added $ingredientName', style: const TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to add ingredient'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isScanning = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _nameFromFileName(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    final base = dot > 0 ? fileName.substring(0, dot) : fileName;
+    final withSpaces = base.replaceAll(RegExp(r'[._-]+'), ' ').trim();
+    if (withSpaces.isEmpty) return 'Ingredient';
+    return withSpaces.split(' ').map((w) => w.isEmpty ? '' : (w[0].toUpperCase() + (w.length > 1 ? w.substring(1).toLowerCase() : ''))).join(' ');
   }
 
   Future<void> _showAddManualDialog() async {
@@ -616,7 +711,7 @@ class _ProgressiveIngredientScanPageState
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    '🤖 AI Finding Recipes...',
+                    'Finding Recipes...',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -649,9 +744,55 @@ class _ProgressiveIngredientScanPageState
       if (result['success'] == true) {
         final recipes = result['recipeSuggestions'] ?? [];
         
-        print('📋 Found ${recipes.length} recipes');
+        // Filter to database recipes that contain ALL scanned ingredients (allow extras)
+        final scannedNames = _ingredientList
+            .map((ing) => (ing['name'] ?? '').toString().toLowerCase().trim())
+            .where((n) => n.isNotEmpty)
+            .toSet();
+
+        final filtered = recipes.where((r) {
+          try {
+            if ((r['source'] ?? '') != 'database') return false;
+            final recIngs = (r['ingredients'] as List? ?? [])
+                .map((ing) => (ing is Map ? (ing['name'] ?? '') : ing).toString().toLowerCase().trim())
+                .where((n) => n.isNotEmpty)
+                .toSet();
+            if (recIngs.isEmpty) return false;
+            // Include recipe if it contains all scanned ingredients (superset allowed)
+            return recIngs.containsAll(scannedNames);
+          } catch (_) {
+            return false;
+          }
+        }).toList();
+
+        // Sort priority: highest overlap (desc), fewer extras (asc), higher rating (desc)
+        filtered.sort((a, b) {
+          Set<String> recIngsA = ((a['ingredients'] as List? ?? [])
+              .map((ing) => (ing is Map ? (ing['name'] ?? '') : ing).toString().toLowerCase().trim())
+              .where((n) => n.isNotEmpty)
+              .toSet());
+          Set<String> recIngsB = ((b['ingredients'] as List? ?? [])
+              .map((ing) => (ing is Map ? (ing['name'] ?? '') : ing).toString().toLowerCase().trim())
+              .where((n) => n.isNotEmpty)
+              .toSet());
+
+          final overlapA = scannedNames.intersection(recIngsA).length;
+          final overlapB = scannedNames.intersection(recIngsB).length;
+          if (overlapA != overlapB) return overlapB.compareTo(overlapA);
+
+          final extraA = recIngsA.length - scannedNames.length;
+          final extraB = recIngsB.length - scannedNames.length;
+          if (extraA != extraB) return extraA.compareTo(extraB);
+
+          final ratingA = (a['averageRating'] ?? a['rating'] ?? 0) as num;
+          final ratingB = (b['averageRating'] ?? b['rating'] ?? 0) as num;
+          return ratingB.compareTo(ratingA);
+        });
         
-        if (recipes.isEmpty) {
+        print('📋 Found ${recipes.length} recipes (before filter)');
+        print('🎯 Showing ${filtered.length} exact database matches');
+        
+        if (filtered.isEmpty) {
           if (mounted) {
             showDialog(
               context: context,
@@ -689,7 +830,7 @@ class _ProgressiveIngredientScanPageState
             MaterialPageRoute(
               builder: (context) => RecipeSuggestionsListPage(
                 ingredients: _ingredientList,
-                recipes: recipes,
+                recipes: filtered,
               ),
             ),
           );
