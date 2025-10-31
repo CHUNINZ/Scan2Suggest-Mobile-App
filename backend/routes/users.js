@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { uploadBuffer } = require('../services/cloudinaryService');
 const { saveBuffer } = require('../services/gridfsService');
 
 const router = express.Router();
@@ -107,8 +108,8 @@ router.post('/upload-avatar', auth, upload.memoryUpload.single('profileImage'), 
         message: 'No image file provided'
       });
     }
-    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
-    const imageUrl = `/files/${fileId.toString()}`;
+    const result = await uploadBuffer(req.file.buffer, 'scan2suggest/profiles');
+    const imageUrl = result.secure_url;
     
     const user = await User.findByIdAndUpdate(
       req.user._id,
@@ -121,7 +122,7 @@ router.post('/upload-avatar', auth, upload.memoryUpload.single('profileImage'), 
       message: 'Avatar uploaded successfully',
       user,
       imageUrl,
-      fileId
+      publicId: result.public_id
     });
   } catch (error) {
     console.error('Upload avatar error:', error);

@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { saveBuffer } = require('../services/gridfsService');
+const { uploadBuffer } = require('../services/cloudinaryService');
 
 const router = express.Router();
 
@@ -19,14 +19,14 @@ router.post('/profile', auth, upload.memoryUpload.single('profileImage'), async 
       });
     }
 
-    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
-    const imageUrl = `/files/${fileId.toString()}`;
+    const result = await uploadBuffer(req.file.buffer, 'scan2suggest/profiles');
+    const imageUrl = result.secure_url;
 
     res.json({
       success: true,
       message: 'Profile image uploaded successfully',
       imageUrl,
-      fileId
+      publicId: result.public_id
     });
   } catch (error) {
     console.error('Upload profile image error:', error);
@@ -51,8 +51,8 @@ router.post('/recipe', auth, upload.memoryUpload.array('recipeImages', 5), async
 
     const images = [];
     for (const file of req.files) {
-      const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
-      images.push({ url: `/files/${fileId.toString()}`, fileId });
+      const result = await uploadBuffer(file.buffer, 'scan2suggest/recipes');
+      images.push({ url: result.secure_url, publicId: result.public_id });
     }
 
     res.json({
@@ -81,14 +81,14 @@ router.post('/scan', auth, upload.memoryUpload.single('scanImage'), async (req, 
       });
     }
 
-    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
-    const imageUrl = `/files/${fileId.toString()}`;
+    const result = await uploadBuffer(req.file.buffer, 'scan2suggest/scans');
+    const imageUrl = result.secure_url;
 
     res.json({
       success: true,
       message: 'Scan image uploaded successfully',
       imageUrl,
-      fileId
+      publicId: result.public_id
     });
   } catch (error) {
     console.error('Upload scan image error:', error);
