@@ -4,7 +4,7 @@ const Recipe = require('../models/Recipe');
 const User = require('../models/User');
 const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { saveBuffer } = require('../services/gridfsService');
+const { uploadBuffer } = require('../services/cloudinaryService');
 
 const router = express.Router();
 
@@ -212,8 +212,8 @@ router.post('/', auth, upload.memoryUpload.array('recipeImages', 5), [
     const images = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
-        images.push(`/files/${fileId.toString()}`);
+        const result = await uploadBuffer(file.buffer, 'scan2suggest/recipes');
+        images.push(result.secure_url);
       }
     }
 
@@ -288,8 +288,8 @@ router.put('/:id', auth, upload.memoryUpload.array('recipeImages', 5), async (re
     if (req.files && req.files.length > 0) {
       const newImages = [];
       for (const file of req.files) {
-        const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
-        newImages.push(`/files/${fileId.toString()}`);
+        const result = await uploadBuffer(file.buffer, 'scan2suggest/recipes');
+        newImages.push(result.secure_url);
       }
       updateData.images = [...(recipe.images || []), ...newImages];
     }
