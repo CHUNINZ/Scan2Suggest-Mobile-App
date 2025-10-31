@@ -155,7 +155,8 @@ class _FollowersListPageState extends State<FollowersListPage> {
     }
     
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
-    return '$baseUrl$imageStr';
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath';
   }
 
   Future<void> _refreshUsers() async {

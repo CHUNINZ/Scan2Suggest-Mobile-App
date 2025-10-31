@@ -4,6 +4,7 @@ const Recipe = require('../models/Recipe');
 const User = require('../models/User');
 const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { saveBuffer } = require('../services/gridfsService');
 
 const router = express.Router();
 
@@ -155,7 +156,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // @route   POST /api/recipes
 // @desc    Create new recipe
 // @access  Private
-router.post('/', auth, upload.diskUpload.array('recipeImages', 5), [
+router.post('/', auth, upload.memoryUpload.array('recipeImages', 5), [
   body('title')
     .trim()
     .isLength({ min: 3, max: 100 })
@@ -207,8 +208,14 @@ router.post('/', auth, upload.diskUpload.array('recipeImages', 5), [
       dietaryInfo
     } = req.body;
 
-    // Process uploaded images
-    const images = req.files ? req.files.map(file => `/uploads/recipes/${file.filename}`) : [];
+    // Process uploaded images -> GridFS
+    const images = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
+        images.push(`/files/${fileId.toString()}`);
+      }
+    }
 
     const recipe = new Recipe({
       title,
@@ -256,7 +263,7 @@ router.post('/', auth, upload.diskUpload.array('recipeImages', 5), [
 // @route   PUT /api/recipes/:id
 // @desc    Update recipe
 // @access  Private
-router.put('/:id', auth, upload.diskUpload.array('recipeImages', 5), async (req, res) => {
+router.put('/:id', auth, upload.memoryUpload.array('recipeImages', 5), async (req, res) => {
   try {
     const recipe = await Recipe.findById(req.params.id);
 
@@ -277,9 +284,13 @@ router.put('/:id', auth, upload.diskUpload.array('recipeImages', 5), async (req,
 
     const updateData = { ...req.body };
 
-    // Process new images if uploaded
+    // Process new images if uploaded -> GridFS
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => `/uploads/recipes/${file.filename}`);
+      const newImages = [];
+      for (const file of req.files) {
+        const fileId = await saveBuffer(file.buffer, file.originalname, file.mimetype);
+        newImages.push(`/files/${fileId.toString()}`);
+      }
       updateData.images = [...(recipe.images || []), ...newImages];
     }
 
