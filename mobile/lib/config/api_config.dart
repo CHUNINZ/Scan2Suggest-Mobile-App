@@ -3,7 +3,7 @@ class ApiConfig {
   // ========================================
   // 🔧 CHANGE THIS IP ADDRESS WHEN SWITCHING WIFI NETWORKS
   // ========================================
-  static const String BACKEND_IP = '10.164.210.221';
+  static const String BACKEND_IP = '10.239.179.221';
   static const String BACKEND_PORT = '3000';
   
 
@@ -24,10 +24,7 @@ class ApiConfig {
   
   // Multiple possible server addresses - the app will try each one
   static List<String> get possibleBaseUrls => [
-    primaryBackendUrl, 
-    'http://$BACKEND_IP:$BACKEND_PORT/api', 
-    'http://10.0.2.2:$BACKEND_PORT/api', 
-    'http://localhost:$BACKEND_PORT/api', 
+    primaryBackendUrl,
   ];
   
   

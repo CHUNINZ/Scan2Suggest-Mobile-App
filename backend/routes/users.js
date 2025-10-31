@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Recipe = require('../models/Recipe');
 const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { saveBuffer } = require('../services/gridfsService');
 
 const router = express.Router();
 
@@ -98,16 +99,16 @@ router.put('/profile', auth, [
 // @route   POST /api/users/upload-avatar
 // @desc    Upload user avatar
 // @access  Private
-router.post('/upload-avatar', auth, upload.diskUpload.single('profileImage'), async (req, res) => {
+router.post('/upload-avatar', auth, upload.memoryUpload.single('profileImage'), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
         message: 'No image file provided'
       });
     }
-
-    const imageUrl = `/uploads/profiles/${req.file.filename}`;
+    const fileId = await saveBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
+    const imageUrl = `/files/${fileId.toString()}`;
     
     const user = await User.findByIdAndUpdate(
       req.user._id,
@@ -119,7 +120,8 @@ router.post('/upload-avatar', auth, upload.diskUpload.single('profileImage'), as
       success: true,
       message: 'Avatar uploaded successfully',
       user,
-      imageUrl
+      imageUrl,
+      fileId
     });
   } catch (error) {
     console.error('Upload avatar error:', error);

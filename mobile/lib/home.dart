@@ -447,7 +447,8 @@ class _HomePageState extends State<HomePage>
     
     // Otherwise, construct full URL from base URL
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', ''); // Remove /api suffix
-    return '$baseUrl$imageStr'; // imageStr should start with /uploads/...
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath'; // imageStr may or may not start with '/'
   }
 
   // Refresh data

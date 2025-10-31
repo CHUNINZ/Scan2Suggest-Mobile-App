@@ -594,7 +594,8 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     }
     
     final baseUrl = ApiConfig.safeBaseUrl.replaceAll('/api', '');
-    return '$baseUrl$imageStr';
+    final normalizedPath = imageStr.startsWith('/') ? imageStr : '/$imageStr';
+    return '$baseUrl$normalizedPath';
   }
 
   @override
