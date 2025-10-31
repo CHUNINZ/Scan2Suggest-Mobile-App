@@ -2,6 +2,9 @@ const Recipe = require('../models/Recipe');
 const mealDbRecipeService = require('./mealDbRecipeService');
 const spoonacularRecipeService = require('./spoonacularRecipeService');
 
+// Toggle via env: set USE_EXTERNAL_RECIPES=false to disable external providers
+const USE_EXTERNAL_RECIPES = process.env.USE_EXTERNAL_RECIPES !== 'false';
+
 class RecipeSuggestionService {
   constructor() {
     console.log('✅ Recipe Suggestion Service initialized');
@@ -33,9 +36,9 @@ class RecipeSuggestionService {
       // Search our database for recipes containing these ingredients
       const dbRecipes = await this.searchDatabaseRecipes(ingredientNames);
       
-      // Search Spoonacular for additional recipe suggestions
+      // Search external providers (optional)
       let externalRecipes = [];
-      if (ingredientNames.length > 0) {
+      if (USE_EXTERNAL_RECIPES && ingredientNames.length > 0) {
         try {
           const mainIngredient = ingredientNames[0];
           console.log(`🌐 Searching Spoonacular for: ${mainIngredient}`);
@@ -53,7 +56,7 @@ class RecipeSuggestionService {
         }
       }
 
-      // Combine database and external recipes
+      // Combine database and external recipes (external optional)
       const allSuggestions = this.rankSuggestions(dbRecipes, externalRecipes, ingredientNames);
 
       console.log(`✅ Found ${allSuggestions.length} recipe suggestions`);

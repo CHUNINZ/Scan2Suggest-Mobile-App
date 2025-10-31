@@ -1208,6 +1208,40 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  // Web-safe: scan a single ingredient from in-memory bytes
+  static Future<Map<String, dynamic>> scanSingleIngredientFromBytes(
+    List<int> bytes, {
+    String filename = 'ingredient.jpg',
+  }) async {
+    if (ApiConfig.enableLogging) {
+      print('🥬 [Progressive][Web] Scanning single ingredient from bytes...');
+      print('📊 Bytes length: ${bytes.length}');
+    }
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConfig.safeBaseUrl}/scan/ingredient/single'),
+    );
+    request.headers.addAll(_getMultipartHeaders());
+
+    // Infer content type from filename
+    final ext = filename.split('.').last.toLowerCase();
+    String mime = 'image/jpeg';
+    if (ext == 'png') mime = 'image/png';
+    if (ext == 'webp') mime = 'image/webp';
+
+    final multipartFile = http.MultipartFile.fromBytes(
+      'scanImage',
+      bytes,
+      filename: filename,
+      contentType: MediaType.parse(mime),
+    );
+    request.files.add(multipartFile);
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    return _handleResponse(response);
+  }
+
   // Get current ingredient scanning session
   static Future<Map<String, dynamic>> getIngredientSession() async {
     if (ApiConfig.enableLogging) {
