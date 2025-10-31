@@ -13,6 +13,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const User = require('../models/User');
 const Recipe = require('../models/Recipe');
+const ScanResult = require('../models/ScanResult');
 const { uploadBuffer } = require('../services/cloudinaryService');
 
 function resolveLocalPath(uploadUrl) {
@@ -94,6 +95,24 @@ async function migrateRecipeImages() {
   console.log(`Recipe refs to Cloudinary: ${migratedRefs}, missing files: ${missing}`);
 }
 
+async function migrateScanResults() {
+  const scanResults = await ScanResult.find({ imageUrl: { $regex: '^/uploads/' } });
+  let migrated = 0, missing = 0;
+  for (const scan of scanResults) {
+    const filePath = resolveLocalPath(scan.imageUrl);
+    if (!fs.existsSync(filePath)) {
+      missing++;
+      continue;
+    }
+    const buffer = fs.readFileSync(filePath);
+    const result = await uploadBuffer(buffer, 'scan2suggest/scans');
+    scan.imageUrl = result.secure_url;
+    await scan.save();
+    migrated++;
+  }
+  console.log(`Scan results to Cloudinary: ${migrated}, missing files: ${missing}`);
+}
+
 async function run() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/start_cooking';
   await mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true });
@@ -101,6 +120,7 @@ async function run() {
   try {
     await migrateUserProfileImages();
     await migrateRecipeImages();
+    await migrateScanResults();
   } finally {
     await mongoose.disconnect();
     console.log('Cloudinary migration complete');
