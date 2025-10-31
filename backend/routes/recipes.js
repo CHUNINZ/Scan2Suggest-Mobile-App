@@ -208,7 +208,7 @@ router.post('/', auth, upload.memoryUpload.array('recipeImages', 5), [
       dietaryInfo
     } = req.body;
 
-    // Process uploaded images -> GridFS
+    // Process uploaded images -> Cloudinary
     const images = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
@@ -284,7 +284,7 @@ router.put('/:id', auth, upload.memoryUpload.array('recipeImages', 5), async (re
 
     const updateData = { ...req.body };
 
-    // Process new images if uploaded -> GridFS
+    // Process new images if uploaded -> Cloudinary
     if (req.files && req.files.length > 0) {
       const newImages = [];
       for (const file of req.files) {

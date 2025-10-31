@@ -5,7 +5,6 @@ const Recipe = require('../models/Recipe');
 const { auth, optionalAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { uploadBuffer } = require('../services/cloudinaryService');
-const { saveBuffer } = require('../services/gridfsService');
 
 const router = express.Router();
 
