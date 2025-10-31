@@ -188,7 +188,10 @@ class _SignInState extends State<SignIn> with TickerProviderStateMixin {
             child: IntrinsicHeight(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Spacer(flex: 2),
@@ -482,6 +485,8 @@ class _SignInState extends State<SignIn> with TickerProviderStateMixin {
                     
                     const SizedBox(height: 32),
                   ],
+                    ),
+                  ),
                 ),
               ),
             ),
