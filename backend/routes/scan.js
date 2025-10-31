@@ -4,6 +4,7 @@ const ScanResult = require('../models/ScanResult');
 const Recipe = require('../models/Recipe');
 const { auth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { uploadBuffer } = require('../services/cloudinaryService');
 const roboflowService = require('../services/roboflowService');
 const mealDbRecipeService = require('../services/mealDbRecipeService');
 const spoonacularRecipeService = require('../services/spoonacularRecipeService');
@@ -43,7 +44,10 @@ router.post('/analyze', auth, upload.memoryUpload.single('scanImage'), [
     }
 
     const { scanType } = req.body;
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/scans/${req.file.filename}`;
+    
+    // Upload image to Cloudinary
+    const result = await uploadBuffer(req.file.buffer, 'scan2suggest/scans');
+    const imageUrl = result.secure_url;
 
     // Create scan result record
     const scanResult = new ScanResult({
@@ -611,11 +615,15 @@ router.post('/ingredients', auth, upload.memoryUpload.single('scanImage'), async
 
     console.log('🥬 Starting ingredient detection...');
     
+    // Upload image to Cloudinary
+    const result = await uploadBuffer(req.file.buffer, 'scan2suggest/scans');
+    const imageUrl = result.secure_url;
+    
     // Create scan result record
     const scanResult = new ScanResult({
       userId: req.user._id,
       scanType: 'ingredient',
-      imageUrl: `/uploads/scans/${req.file.filename}`,
+      imageUrl: imageUrl,
       status: 'processing'
     });
 
