@@ -419,8 +419,7 @@ class _SignInState extends State<SignIn> with TickerProviderStateMixin {
                     const SizedBox(height: 32),
                     
                     
-                    
-                    
+                    const Spacer(flex: 3),
                     
                     // Sign up link
                     AnimatedBuilder(
