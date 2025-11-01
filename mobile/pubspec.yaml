@@ -52,6 +52,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/ingredients/
+    - assets/added_ingredients/
     - assets/images/image1.jpg
     - assets/images/image2.jpg
     - assets/images/image3.jpg
