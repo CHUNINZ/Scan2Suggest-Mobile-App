@@ -744,7 +744,7 @@ class _ProgressiveIngredientScanPageState
       if (result['success'] == true) {
         final recipes = result['recipeSuggestions'] ?? [];
         
-        // Filter to database recipes that contain ALL scanned ingredients (allow extras)
+        // Filter to database recipes that contain at least SOME scanned ingredients (partial match)
         final scannedNames = _ingredientList
             .map((ing) => (ing['name'] ?? '').toString().toLowerCase().trim())
             .where((n) => n.isNotEmpty)
@@ -758,15 +758,24 @@ class _ProgressiveIngredientScanPageState
                 .where((n) => n.isNotEmpty)
                 .toSet();
             if (recIngs.isEmpty) return false;
-            // Include recipe if it contains all scanned ingredients (superset allowed)
-            return recIngs.containsAll(scannedNames);
+            // Include recipe if it contains at least one scanned ingredient (partial match allowed)
+            return recIngs.intersection(scannedNames).isNotEmpty;
           } catch (_) {
             return false;
           }
         }).toList();
 
-        // Sort priority: highest overlap (desc), fewer extras (asc), higher rating (desc)
+        // Sort priority: use backend matchScore if available, otherwise highest overlap (desc), fewer extras (asc), higher rating (desc)
         filtered.sort((a, b) {
+          // First, use backend matchScore if available
+          final matchScoreA = a['matchScore'] as num?;
+          final matchScoreB = b['matchScore'] as num?;
+          if (matchScoreA != null && matchScoreB != null) {
+            if ((matchScoreB - matchScoreA).abs() > 0.001) {
+              return matchScoreB.compareTo(matchScoreA);
+            }
+          }
+
           Set<String> recIngsA = ((a['ingredients'] as List? ?? [])
               .map((ing) => (ing is Map ? (ing['name'] ?? '') : ing).toString().toLowerCase().trim())
               .where((n) => n.isNotEmpty)
@@ -790,7 +799,7 @@ class _ProgressiveIngredientScanPageState
         });
         
         print('📋 Found ${recipes.length} recipes (before filter)');
-        print('🎯 Showing ${filtered.length} exact database matches');
+        print('🎯 Showing ${filtered.length} database matches (partial matches allowed)');
         
         if (filtered.isEmpty) {
           if (mounted) {
