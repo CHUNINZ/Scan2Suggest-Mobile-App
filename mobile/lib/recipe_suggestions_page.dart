@@ -473,7 +473,7 @@ class _RecipeSuggestionsPageState extends State<RecipeSuggestionsPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            recipe['name'] ?? 'Unknown Recipe',
+                            recipe['title'] ?? recipe['name'] ?? 'Unknown Recipe',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -699,8 +699,12 @@ class _RecipeSuggestionsPageState extends State<RecipeSuggestionsPage>
         ),
       );
 
-      // Get full recipe details
-      final result = await ApiService.getRecipeDetails(recipe['name']);
+      // Get full recipe details - use title if available, fallback to name
+      final recipeName = recipe['title'] ?? recipe['name'] ?? '';
+      if (recipeName.isEmpty) {
+        throw Exception('Recipe name not found');
+      }
+      final result = await ApiService.getRecipeDetails(recipeName);
       
       // Hide loading
       Navigator.pop(context);
@@ -710,7 +714,7 @@ class _RecipeSuggestionsPageState extends State<RecipeSuggestionsPage>
           context,
           MaterialPageRoute(
             builder: (context) => RecipeFromScanPage(
-              foodName: recipe['name'],
+              foodName: recipe['title'] ?? recipe['name'] ?? 'Recipe',
               recipe: result['recipe'],
               scanId: '',
             ),
