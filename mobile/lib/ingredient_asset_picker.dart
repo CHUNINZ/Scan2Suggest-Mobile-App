@@ -25,8 +25,8 @@ class _IngredientAssetPickerPageState extends State<IngredientAssetPickerPage> {
       final Map<String, dynamic> manifestMap = json.decode(manifestJson) as Map<String, dynamic>;
 
       final List<String> paths = manifestMap.keys
-          .where((k) => k.startsWith('assets/ingredients/'))
-          .where((k) => k.endsWith('.png') || k.endsWith('.jpg') || k.endsWith('.jpeg') || k.endsWith('.webp'))
+          .where((k) => k.startsWith('assets/ingredients/') || k.startsWith('assets/added_ingredients/'))
+          .where((k) => k.endsWith('.png') || k.endsWith('.jpg') || k.endsWith('.jpeg') || k.endsWith('.webp') || k.endsWith('.avif'))
           .toList();
 
       setState(() {
@@ -52,15 +52,15 @@ class _IngredientAssetPickerPageState extends State<IngredientAssetPickerPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _assetPaths.isEmpty
-              ? Center(
+              ? const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: EdgeInsets.all(24.0),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
                         SizedBox(height: 12),
-                        Text('No ingredient assets found in assets/ingredients/', textAlign: TextAlign.center),
+                        Text('No ingredient assets found in assets/ingredients/ or assets/added_ingredients/', textAlign: TextAlign.center),
                       ],
                     ),
                   ),
