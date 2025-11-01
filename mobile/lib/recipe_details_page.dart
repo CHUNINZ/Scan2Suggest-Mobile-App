@@ -124,12 +124,45 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   }
 
   // Get steps from recipe data
+  // Handles both 'instructions' field (database recipes) and 'steps' field (legacy/external)
   List<String> get _steps {
-    final stepsList = widget.recipe['steps'] as List<dynamic>? ?? [];
-    if (stepsList.isEmpty) {
-      return ['No cooking instructions available for this recipe.'];
+    // First try 'instructions' field (database recipes have instruction objects)
+    final instructionsList = widget.recipe['instructions'] as List<dynamic>? ?? [];
+    if (instructionsList.isNotEmpty) {
+      final steps = instructionsList.map<String>((instruction) {
+        // Handle instruction objects with 'instruction' property
+        if (instruction is Map<String, dynamic>) {
+          final instructionText = instruction['instruction'] ?? 
+                                 instruction['step'] ?? 
+                                 instruction['text'] ??
+                                 instruction.toString();
+          return instructionText.toString();
+        }
+        // Handle string instructions
+        return instruction.toString();
+      }).where((step) => step.isNotEmpty).toList();
+      if (steps.isNotEmpty) {
+        return steps;
+      }
     }
-    return stepsList.map((step) => step.toString()).toList();
+    
+    // Fallback to 'steps' field for backward compatibility
+    final stepsList = widget.recipe['steps'] as List<dynamic>? ?? [];
+    if (stepsList.isNotEmpty) {
+      final steps = stepsList.map<String>((step) {
+        if (step is Map<String, dynamic>) {
+          final stepText = step['step'] ?? step['instruction'] ?? step['text'] ?? step.toString();
+          return stepText.toString();
+        }
+        return step.toString();
+      }).where((step) => step.isNotEmpty).toList();
+      if (steps.isNotEmpty) {
+        return steps;
+      }
+    }
+    
+    // No instructions found
+    return ['No cooking instructions available for this recipe.'];
   }
 
   Future<void> _toggleLike() async {

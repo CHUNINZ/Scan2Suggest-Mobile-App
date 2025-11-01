@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../config/api_config.dart';
 import '../utils/error_messages.dart';
 import '../utils/performance_monitor.dart';
@@ -744,27 +745,145 @@ class ApiService {
     // Add image files
     if (images != null) {
       for (final image in images) {
-        // Get file extension to determine mime type
-        final extension = image.path.split('.').last.toLowerCase();
-        String mimeType = 'image/jpeg'; // default
+        http.MultipartFile multipartFile;
         
-        if (extension == 'png') {
-          mimeType = 'image/png';
-        } else if (extension == 'jpg' || extension == 'jpeg') {
-          mimeType = 'image/jpeg';
-        } else if (extension == 'gif') {
-          mimeType = 'image/gif';
-        } else if (extension == 'webp') {
-          mimeType = 'image/webp';
-        }
-        
-        request.files.add(
-          await http.MultipartFile.fromPath(
+        if (kIsWeb) {
+          // For web, use fromBytes instead of fromPath
+          final bytes = await image.readAsBytes();
+          
+          // Try to get extension from path, fallback to jpg if invalid
+          String extension = 'jpg';
+          String mimeType = 'image/jpeg';
+          try {
+            extension = image.path.split('.').last.toLowerCase();
+            if (extension == 'png') {
+              mimeType = 'image/png';
+            } else if (extension == 'jpg' || extension == 'jpeg') {
+              mimeType = 'image/jpeg';
+            } else if (extension == 'gif') {
+              mimeType = 'image/gif';
+            } else if (extension == 'webp') {
+              mimeType = 'image/webp';
+            }
+          } catch (e) {
+            // If path is invalid on web, use default jpg
+            extension = 'jpg';
+            mimeType = 'image/jpeg';
+          }
+          
+          multipartFile = http.MultipartFile.fromBytes(
+            'recipeImages',
+            bytes,
+            filename: 'recipe_image.$extension',
+            contentType: MediaType.parse(mimeType),
+          );
+        } else {
+          // For mobile, use fromPath
+          // Get file extension to determine mime type
+          final extension = image.path.split('.').last.toLowerCase();
+          String mimeType = 'image/jpeg'; // default
+          
+          if (extension == 'png') {
+            mimeType = 'image/png';
+          } else if (extension == 'jpg' || extension == 'jpeg') {
+            mimeType = 'image/jpeg';
+          } else if (extension == 'gif') {
+            mimeType = 'image/gif';
+          } else if (extension == 'webp') {
+            mimeType = 'image/webp';
+          }
+          
+          multipartFile = await http.MultipartFile.fromPath(
             'recipeImages',
             image.path,
             contentType: MediaType.parse(mimeType),
-          ),
+          );
+        }
+        
+        request.files.add(multipartFile);
+      }
+    }
+    
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    
+    return _handleResponse(response);
+  }
+  
+  // Web-safe overload that accepts XFile instead of File
+  static Future<Map<String, dynamic>> createRecipeWithXFile({
+    required String title,
+    required String description,
+    required String category,
+    required String difficulty,
+    required int prepTime,
+    required int cookTime,
+    required int servings,
+    required List<Map<String, dynamic>> ingredients,
+    required List<Map<String, dynamic>> instructions,
+    List<XFile>? images,
+    Map<String, dynamic>? nutrition,
+    List<String>? tags,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConfig.safeBaseUrl}/recipes'),
+    );
+    
+    request.headers.addAll(_getMultipartHeaders());
+    
+    // Add text fields
+    request.fields['title'] = title;
+    request.fields['description'] = description;
+    request.fields['category'] = category;
+    request.fields['difficulty'] = difficulty;
+    request.fields['prepTime'] = prepTime.toString();
+    request.fields['cookTime'] = cookTime.toString();
+    request.fields['servings'] = servings.toString();
+    request.fields['ingredients'] = json.encode(ingredients);
+    request.fields['instructions'] = json.encode(instructions);
+    
+    if (nutrition != null) {
+      request.fields['nutrition'] = json.encode(nutrition);
+    }
+    
+    if (tags != null) {
+      request.fields['tags'] = json.encode(tags);
+    }
+    
+    // Add image files
+    if (images != null) {
+      for (final image in images) {
+        final bytes = await image.readAsBytes();
+        
+        // Try to get extension from name, fallback to jpg if invalid
+        String extension = 'jpg';
+        String mimeType = 'image/jpeg';
+        try {
+          extension = image.name.split('.').last.toLowerCase();
+          if (extension == 'png') {
+            mimeType = 'image/png';
+          } else if (extension == 'jpg' || extension == 'jpeg') {
+            mimeType = 'image/jpeg';
+          } else if (extension == 'gif') {
+            mimeType = 'image/gif';
+          } else if (extension == 'webp') {
+            mimeType = 'image/webp';
+          }
+        } catch (e) {
+          // If name is invalid, use default jpg
+          extension = 'jpg';
+          mimeType = 'image/jpeg';
+        }
+        
+        final multipartFile = http.MultipartFile.fromBytes(
+          'recipeImages',
+          bytes,
+          filename: image.name.isNotEmpty ? image.name : 'recipe_image.$extension',
+          contentType: MediaType.parse(mimeType),
         );
+        
+        request.files.add(multipartFile);
       }
     }
     
@@ -947,8 +1066,10 @@ class ApiService {
   }) async {
     if (ApiConfig.enableLogging) {
       print('📤 Preparing image upload...');
-      print('📂 Image path: ${imageFile.path}');
-      print('📊 Image size: ${await imageFile.length()} bytes');
+      if (!kIsWeb) {
+        print('📂 Image path: ${imageFile.path}');
+        print('📊 Image size: ${await imageFile.length()} bytes');
+      }
     }
     
     final request = http.MultipartRequest(
@@ -960,11 +1081,25 @@ class ApiService {
     request.fields['scanType'] = scanType;
     
     // Add image file with explicit MIME type
-    final multipartFile = await http.MultipartFile.fromPath(
-      'scanImage', 
-      imageFile.path,
-      contentType: MediaType('image', 'jpeg'), // Explicitly set MIME type
-    );
+    http.MultipartFile multipartFile;
+    
+    if (kIsWeb) {
+      // For web, use fromBytes instead of fromPath
+      final bytes = await imageFile.readAsBytes();
+      multipartFile = http.MultipartFile.fromBytes(
+        'scanImage',
+        bytes,
+        filename: 'scan_image.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      );
+    } else {
+      // For mobile, use fromPath
+      multipartFile = await http.MultipartFile.fromPath(
+        'scanImage', 
+        imageFile.path,
+        contentType: MediaType('image', 'jpeg'), // Explicitly set MIME type
+      );
+    }
     
     if (ApiConfig.enableLogging) {
       print('📎 Multipart file created:');
@@ -1163,7 +1298,9 @@ class ApiService {
   static Future<Map<String, dynamic>> scanSingleIngredient(File imageFile) async {
     if (ApiConfig.enableLogging) {
       print('🥬 [Progressive] Scanning single ingredient...');
-      print('📂 Image path: ${imageFile.path}');
+      if (!kIsWeb) {
+        print('📂 Image path: ${imageFile.path}');
+      }
     }
     
     final request = http.MultipartRequest(
@@ -1173,11 +1310,25 @@ class ApiService {
     
     request.headers.addAll(_getMultipartHeaders());
     
-    final multipartFile = await http.MultipartFile.fromPath(
-      'scanImage',
-      imageFile.path,
-      contentType: MediaType('image', 'jpeg'),
-    );
+    http.MultipartFile multipartFile;
+    
+    if (kIsWeb) {
+      // For web, use fromBytes instead of fromPath
+      final bytes = await imageFile.readAsBytes();
+      multipartFile = http.MultipartFile.fromBytes(
+        'scanImage',
+        bytes,
+        filename: 'ingredient.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      );
+    } else {
+      // For mobile, use fromPath
+      multipartFile = await http.MultipartFile.fromPath(
+        'scanImage',
+        imageFile.path,
+        contentType: MediaType('image', 'jpeg'),
+      );
+    }
     
     request.files.add(multipartFile);
     

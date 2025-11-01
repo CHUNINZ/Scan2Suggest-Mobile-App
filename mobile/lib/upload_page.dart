@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 import 'app_theme.dart';
 import 'services/api_service.dart';
 
@@ -24,7 +26,9 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
   String _selectedDifficulty = 'medium';
   final List<String> _ingredients = [];
   final List<String> _steps = [];
-  File? _selectedImage;
+  File? _selectedImage; // For mobile
+  XFile? _selectedImageXFile; // For web
+  Uint8List? _selectedImageBytes; // For displaying on web
   final ImagePicker _picker = ImagePicker();
   
   // Form validation
@@ -260,19 +264,33 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
       final cookTime = totalDuration - prepTime;
 
       // Submit recipe
-      final result = await ApiService.createRecipe(
-        title: _foodName.trim(),
-        description: _description.trim(),
-        category: _selectedCategory,
-        difficulty: _selectedDifficulty,
-        prepTime: prepTime,
-        cookTime: cookTime,
-        servings: 4, // Default servings
-        ingredients: ingredientsList,
-        instructions: instructionsList,
-        tags: ['filipino', 'homemade'],
-        images: _selectedImage != null ? [_selectedImage!] : null,
-      );
+      final result = kIsWeb
+          ? await ApiService.createRecipeWithXFile(
+              title: _foodName.trim(),
+              description: _description.trim(),
+              category: _selectedCategory,
+              difficulty: _selectedDifficulty,
+              prepTime: prepTime,
+              cookTime: cookTime,
+              servings: 4, // Default servings
+              ingredients: ingredientsList,
+              instructions: instructionsList,
+              tags: ['filipino', 'homemade'],
+              images: _selectedImageXFile != null ? [_selectedImageXFile!] : null,
+            )
+          : await ApiService.createRecipe(
+              title: _foodName.trim(),
+              description: _description.trim(),
+              category: _selectedCategory,
+              difficulty: _selectedDifficulty,
+              prepTime: prepTime,
+              cookTime: cookTime,
+              servings: 4, // Default servings
+              ingredients: ingredientsList,
+              instructions: instructionsList,
+              tags: ['filipino', 'homemade'],
+              images: _selectedImage != null ? [_selectedImage!] : null,
+            );
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
@@ -346,6 +364,8 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
       _ingredients.clear();
       _steps.clear();
       _selectedImage = null;
+      _selectedImageXFile = null;
+      _selectedImageBytes = null;
       _showValidationErrors = false;
       _nameController.clear();
       _descriptionController.clear();
@@ -359,11 +379,29 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
+        requestFullMetadata: false, // Helps with web compatibility
       );
       
       if (image != null) {
         setState(() {
-          _selectedImage = File(image.path);
+          // Store XFile for both platforms
+          _selectedImageXFile = image;
+          if (kIsWeb) {
+            // For web, read bytes for display but don't create File
+            _selectedImageBytes = null;
+            image.readAsBytes().then((bytes) {
+              if (mounted) {
+                setState(() {
+                  _selectedImageBytes = bytes;
+                });
+              }
+            });
+            _selectedImage = null;
+          } else {
+            // For mobile, use File
+            _selectedImage = File(image.path);
+            _selectedImageBytes = null;
+          }
         });
         HapticFeedback.lightImpact();
       }
@@ -647,10 +685,10 @@ Made with Scan2Suggest App 🇵🇭
                 color: AppTheme.surfaceWhite,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _selectedImage != null 
+                  color: (_selectedImage != null || _selectedImageBytes != null)
                       ? AppTheme.primaryDarkGreen 
                       : AppTheme.textDisabled,
-                  width: _selectedImage != null ? 2 : 1,
+                  width: (_selectedImage != null || _selectedImageBytes != null) ? 2 : 1,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -660,17 +698,26 @@ Made with Scan2Suggest App 🇵🇭
                   ),
                 ],
               ),
-              child: _selectedImage != null
+              child: (_selectedImage != null || _selectedImageBytes != null)
                   ? Stack(
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.file(
-                            _selectedImage!,
-                            width: double.infinity,
-                            height: 200,
-                            fit: BoxFit.cover,
-                          ),
+                          child: _selectedImageBytes != null && kIsWeb
+                              ? Image.memory(
+                                  _selectedImageBytes!,
+                                  width: double.infinity,
+                                  height: 200,
+                                  fit: BoxFit.cover,
+                                )
+                              : !kIsWeb && _selectedImage != null
+                                  ? Image.file(
+                                      _selectedImage!,
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : const SizedBox.shrink(),
                         ),
                         Positioned(
                           top: 8,
@@ -685,6 +732,7 @@ Made with Scan2Suggest App 🇵🇭
                               onPressed: () {
                                 setState(() {
                                   _selectedImage = null;
+                                  _selectedImageBytes = null;
                                 });
                               },
                             ),

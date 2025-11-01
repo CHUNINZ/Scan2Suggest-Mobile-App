@@ -181,7 +181,7 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
 
     try {
       // Use email as name for now, or you can add a name field
-      final response = await ApiService.register(
+      await ApiService.register(
         name: email.split('@')[0], // Use email prefix as name
         email: email,
         password: password,
@@ -342,7 +342,10 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
             child: IntrinsicHeight(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Spacer(flex: 1),
@@ -633,6 +636,8 @@ class _SignUpState extends State<SignUp> with TickerProviderStateMixin {
                     
                     const Spacer(flex: 2),
                   ],
+                    ),
+                  ),
                 ),
               ),
             ),

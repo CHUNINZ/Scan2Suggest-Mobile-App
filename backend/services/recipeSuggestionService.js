@@ -82,12 +82,13 @@ class RecipeSuggestionService {
   }
 
   /**
-   * Search database recipes by ingredients - EXACT MATCH ONLY
-   * Only returns recipes that contain ALL scanned ingredients and NO additional ingredients
+   * Search database recipes by ingredients - PARTIAL MATCH
+   * Returns recipes that contain at least some of the scanned ingredients
+   * Ranked by how many ingredients match (more matches = higher priority)
    */
   async searchDatabaseRecipes(ingredientNames) {
     try {
-      console.log(`🔍 Searching for recipes with EXACT ingredient match: ${ingredientNames.join(', ')}`);
+      console.log(`🔍 Searching for recipes with partial ingredient match: ${ingredientNames.join(', ')}`);
       
       // Get all published recipes first
       const allRecipes = await Recipe.find({
@@ -96,8 +97,8 @@ class RecipeSuggestionService {
         .populate('creator', 'name profileImage')
         .sort({ averageRating: -1, likesCount: -1 });
 
-      // Filter recipes to find exact matches
-      const exactMatches = allRecipes.filter(recipe => {
+      // Find recipes that contain at least one of the scanned ingredients
+      const matchingRecipes = allRecipes.map(recipe => {
         const recipeIngredientNames = recipe.ingredients.map(ing => 
           ing.name.toLowerCase().trim()
         );
@@ -106,36 +107,41 @@ class RecipeSuggestionService {
           name.toLowerCase().trim()
         );
         
-        // Check if recipe has exactly the same ingredients as scanned
-        const hasAllScannedIngredients = scannedIngredientNames.every(scannedIng => 
+        // Find which scanned ingredients are in this recipe
+        const matchingIngredients = scannedIngredientNames.filter(scannedIng => 
           recipeIngredientNames.some(recipeIng => 
             recipeIng.includes(scannedIng) || scannedIng.includes(recipeIng)
           )
         );
         
-        // Check if recipe has no additional ingredients beyond what was scanned
-        const hasOnlyScannedIngredients = recipeIngredientNames.every(recipeIng => 
-          scannedIngredientNames.some(scannedIng => 
-            recipeIng.includes(scannedIng) || scannedIng.includes(recipeIng)
-          )
-        );
+        // Count how many scanned ingredients match
+        const matchCount = matchingIngredients.length;
         
-        // Recipe must have ALL scanned ingredients AND ONLY those ingredients
-        const isExactMatch = hasAllScannedIngredients && hasOnlyScannedIngredients;
+        // Calculate match score: ratio of matched ingredients to total scanned ingredients
+        // Higher score = more ingredients match
+        const matchScore = matchCount / scannedIngredientNames.length;
         
-        if (isExactMatch) {
-          console.log(`✅ Exact match found: ${recipe.title}`);
-          console.log(`   Recipe ingredients: ${recipeIngredientNames.join(', ')}`);
-          console.log(`   Scanned ingredients: ${scannedIngredientNames.join(', ')}`);
+        return {
+          recipe,
+          matchCount,
+          matchScore,
+          matchingIngredients,
+          recipeIngredientNames
+        };
+      }).filter(item => item.matchCount > 0); // Only include recipes with at least one match
+
+      // Sort by match score (descending), then by rating
+      matchingRecipes.sort((a, b) => {
+        if (b.matchScore !== a.matchScore) {
+          return b.matchScore - a.matchScore;
         }
-        
-        return isExactMatch;
+        return (b.recipe.averageRating || 0) - (a.recipe.averageRating || 0);
       });
 
       // Limit to top 20 results
-      const limitedRecipes = exactMatches.slice(0, 20);
+      const limitedRecipes = matchingRecipes.slice(0, 20);
 
-      const mappedRecipes = limitedRecipes.map(recipe => {
+      const mappedRecipes = limitedRecipes.map(({ recipe, matchCount, matchScore, matchingIngredients, recipeIngredientNames }) => {
         const mapped = {
           source: 'database',
           id: recipe._id,
@@ -151,17 +157,20 @@ class RecipeSuggestionService {
           rating: recipe.averageRating,
           averageRating: recipe.averageRating,
           creator: recipe.creator,
-          matchScore: 1.0 // Perfect match since we filtered for exact matches
+          matchScore: matchScore, // Score based on how many ingredients match
+          matchedIngredients: matchingIngredients.length, // Number of ingredients that matched
+          totalScannedIngredients: ingredientNames.length
         };
         
-        console.log(`📋 Mapped exact match recipe: ${mapped.title} (ID: ${mapped.id})`);
-        console.log(`   Description: ${mapped.description}`);
-        console.log(`   Creator: ${mapped.creator?.name || mapped.creator}`);
+        console.log(`✅ Match found: ${mapped.title}`);
+        console.log(`   Matched ${matchCount}/${ingredientNames.length} ingredients: ${matchingIngredients.join(', ')}`);
+        console.log(`   Recipe ingredients: ${recipeIngredientNames.join(', ')}`);
+        console.log(`   Match score: ${matchScore.toFixed(2)}`);
         
         return mapped;
       });
       
-      console.log(`🎯 Found ${mappedRecipes.length} exact ingredient matches`);
+      console.log(`🎯 Found ${mappedRecipes.length} recipes with matching ingredients`);
       return mappedRecipes;
 
     } catch (error) {
@@ -241,12 +250,30 @@ class RecipeSuggestionService {
 
   /**
    * Calculate how well a recipe matches the ingredients
-   * For exact matches, this will always return 1.0 since we pre-filter for exact matches
+   * Returns a score between 0 and 1 based on ingredient overlap
    */
   calculateMatchScore(recipe, ingredientNames) {
-    // Since we now filter for exact matches in searchDatabaseRecipes,
-    // all recipes that reach this point should have a perfect match score
-    return 1.0;
+    if (!recipe.ingredients || ingredientNames.length === 0) {
+      return 0;
+    }
+
+    const recipeIngredientNames = recipe.ingredients.map(ing => 
+      (typeof ing === 'string' ? ing : ing.name).toLowerCase().trim()
+    );
+    
+    const scannedIngredientNames = ingredientNames.map(name => 
+      name.toLowerCase().trim()
+    );
+    
+    // Count how many scanned ingredients are in the recipe
+    const matchCount = scannedIngredientNames.filter(scannedIng => 
+      recipeIngredientNames.some(recipeIng => 
+        recipeIng.includes(scannedIng) || scannedIng.includes(recipeIng)
+      )
+    ).length;
+    
+    // Return ratio of matched ingredients to total scanned ingredients
+    return matchCount / scannedIngredientNames.length;
   }
 
   /**
