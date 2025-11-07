@@ -13,7 +13,7 @@ class ApiConfig {
   
   // Primary backend URL (automatically selected based on device type)
   static String get primaryBackendUrl {
-    if (IS_ANDROID_EMULATOR) {'''
+    if (IS_ANDROID_EMULATOR) {
       return 'http://10.0.2.2:$BACKEND_PORT/api'; 
     } else if (IS_IOS_SIMULATOR) {
       return 'http://localhost:$BACKEND_PORT/api';
