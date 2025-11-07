@@ -38,7 +38,10 @@ class _IngredientAssetPickerPageState extends State<IngredientAssetPickerPage> {
           .toList();
 
       setState(() {
-        _assetPaths = paths.toSet().toList()..sort();
+        _assetPaths = paths
+            .toSet()
+            .toList()
+          ..sort((a, b) => _basename(a).toLowerCase().compareTo(_basename(b).toLowerCase()));
         _isLoading = false;
       });
     } catch (_) {
