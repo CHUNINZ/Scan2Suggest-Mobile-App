@@ -12,11 +12,19 @@ class IngredientAssetPickerPage extends StatefulWidget {
 class _IngredientAssetPickerPageState extends State<IngredientAssetPickerPage> {
   List<String> _assetPaths = [];
   bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadIngredientAssets();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadIngredientAssets() async {
@@ -65,41 +73,104 @@ class _IngredientAssetPickerPageState extends State<IngredientAssetPickerPage> {
                     ),
                   ),
                 )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: _assetPaths.length,
-                  itemBuilder: (context, index) {
-                    final path = _assetPaths[index];
-                    final name = _basename(path);
-                    return InkWell(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.of(context).pop(path);
-                      },
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(path, fit: BoxFit.cover),
-                            ),
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search ingredient images',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    setState(() {
+                                      _searchQuery = '';
+                                      _searchController.clear();
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ],
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.trim();
+                          });
+                        },
                       ),
-                    );
-                  },
+                    ),
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final filtered = _searchQuery.isEmpty
+                              ? _assetPaths
+                              : _assetPaths
+                                  .where((path) => _basename(path)
+                                      .toLowerCase()
+                                      .contains(_searchQuery.toLowerCase()))
+                                  .toList();
+
+                          if (filtered.isEmpty) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.search_off, size: 48, color: Colors.grey),
+                                    SizedBox(height: 12),
+                                    Text('No images match your search', textAlign: TextAlign.center),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return GridView.builder(
+                            padding: const EdgeInsets.all(12),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final path = filtered[index];
+                              final name = _basename(path);
+                              return InkWell(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  Navigator.of(context).pop(path);
+                                },
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.asset(path, fit: BoxFit.cover),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
     );
   }

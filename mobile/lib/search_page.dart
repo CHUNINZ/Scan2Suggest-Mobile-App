@@ -32,6 +32,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   double? _minRating;
   int? _maxTime;
   String? _difficulty;
+  bool _showResults = false;
   
   // Trending/Popular data
   List<Map<String, dynamic>> _trendingRecipes = [];
@@ -52,6 +53,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     {'value': 'dinner', 'label': 'Dinner'},
   ];
   final List<String> _difficulties = ['Easy', 'Medium', 'Hard'];
+
+  bool get _hasActiveFilters =>
+      _selectedCategory != null || _minRating != null || _maxTime != null || _difficulty != null;
   
   @override
   void initState() {
@@ -136,39 +140,50 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   // Search recipes and users
   Future<void> _performSearch(String query) async {
-    setState(() {
-      _searchQuery = query.trim();
-      _errorMessage = null;
-    });
-    
-    if (query.trim().isEmpty) {
+    final trimmed = query.trim();
+    final hasFilters = _hasActiveFilters;
+
+    if (trimmed.isEmpty && !hasFilters) {
       setState(() {
+        _searchQuery = '';
         _recipeResults = [];
         _userResults = [];
         _isSearching = false;
+        _errorMessage = null;
+        _showResults = false;
       });
       return;
     }
-    
+
     setState(() {
+      _searchQuery = trimmed;
+      _errorMessage = null;
       _isSearching = true;
     });
-    
+
     HapticFeedback.lightImpact();
-    
-    // Save to search history
-    await _saveSearchHistory(query.trim());
-    
+
+    if (trimmed.isNotEmpty) {
+      await _saveSearchHistory(trimmed);
+    }
+
     try {
-      // Search recipes and users in parallel
-      await Future.wait([
-        _searchRecipes(query.trim()),
-        _searchUsers(query.trim()),
-      ]);
-      
+      final futures = <Future>[];
+      futures.add(_searchRecipes(trimmed));
+      if (trimmed.isNotEmpty) {
+        futures.add(_searchUsers(trimmed));
+      } else {
+        setState(() {
+          _userResults = [];
+        });
+      }
+
+      await Future.wait(futures);
+
       if (mounted) {
         setState(() {
           _isSearching = false;
+          _showResults = true;
         });
       }
     } catch (e) {
@@ -176,6 +191,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         setState(() {
           _isSearching = false;
           _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _showResults = true;
         });
       }
     }
@@ -185,8 +201,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   Future<void> _searchRecipes(String query) async {
     try {
       final response = await ApiService.getRecipes(
-        search: query,
+        search: query.isNotEmpty ? query : null,
         category: _selectedCategory != null && _selectedCategory != 'all' ? _selectedCategory : null,
+        difficulty: _difficulty != null ? _difficulty!.toLowerCase() : null,
         limit: 50,
       );
       
@@ -204,7 +221,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
           transformedRecipes = transformedRecipes.where((r) => (r['duration'] ?? 0) <= _maxTime!).toList();
         }
         if (_difficulty != null) {
-          transformedRecipes = transformedRecipes.where((r) => r['difficulty'] == _difficulty).toList();
+          transformedRecipes = transformedRecipes
+              .where((r) => (r['difficultyRaw'] ?? '').toString().toLowerCase() == _difficulty!.toLowerCase())
+              .toList();
         }
         
         setState(() {
@@ -257,6 +276,10 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     final prepTime = recipe['prepTime'] ?? 0;
     final cookTime = recipe['cookTime'] ?? 0;
     final totalTime = prepTime + cookTime;
+    final difficultyRaw = (recipe['difficulty'] ?? 'medium').toString();
+    final difficultyDisplay = difficultyRaw.isNotEmpty
+        ? difficultyRaw[0].toUpperCase() + difficultyRaw.substring(1).toLowerCase()
+        : 'Medium';
           
           return {
             'id': recipe['_id'] ?? recipe['id'],
@@ -280,7 +303,8 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
             'likesCount': recipe['likesCount'] ?? 0,
             'isLiked': recipe['isLiked'] ?? false,
             'isBookmarked': recipe['isBookmarked'] ?? false,
-      'difficulty': recipe['difficulty'] ?? 'Medium',
+      'difficulty': difficultyDisplay,
+      'difficultyRaw': difficultyRaw.toLowerCase(),
     };
   }
 
@@ -555,7 +579,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      if (_searchQuery.isNotEmpty) {
+                      if (_searchQuery.isNotEmpty || _hasActiveFilters) {
                         _performSearch(_searchQuery);
                       }
                     },
@@ -690,7 +714,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       ),
           
           // Tabs
-          if (_searchQuery.isNotEmpty)
+          if (_showResults && _searchQuery.isNotEmpty)
             Container(
               color: AppTheme.surfaceWhite,
               child: TabBar(
@@ -708,15 +732,17 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
           
           // Content
           Expanded(
-            child: _searchQuery.isEmpty
+            child: !_showResults
                 ? _buildEmptyState()
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildRecipeResults(),
-                      _buildUserResults(),
-                    ],
-            ),
+                : _searchQuery.isNotEmpty
+                    ? TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildRecipeResults(),
+                          _buildUserResults(),
+                        ],
+                      )
+                    : _buildRecipeResults(),
           ),
         ],
       ),
